@@ -146,7 +146,7 @@ pressing any encoder switches all four positions to the other page. A
 position without an alternate shows its own parameter on both pages. `shown`
 tells the display which page is up; read it at a position that has an
 alternate. Browser previews show the page of the parameter last
-edited. See
+edited; editing a parameter on both pages keeps the page. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
 which draws its own header: both pages in two rows, the page the encoders edit
 large and bright and the other small and grey.

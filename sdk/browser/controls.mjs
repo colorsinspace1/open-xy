@@ -33,7 +33,7 @@ export const controlPositions = parameters => parameters.map((p, i) => p.control
 // editing it keeps the page.
 export function editedShown(shown, positions, slot, pages = false) {
   if (!pages) return shown.map((s, position) => position === positions[slot] ? slot : s);
-  if (slot < 4 && !positions.slice(4).includes(slot)) return [...shown];
+  if (positions.indexOf(positions[slot], 4) === -1) return [...shown];
   const second = slot >= 4;
   const next = [...shown];
   positions.forEach((position, s) => { if ((s >= 4) === second) next[position] = s; });

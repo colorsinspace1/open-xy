@@ -154,9 +154,9 @@ def validate_definition(value, kind):
     # most one alternate, and a press of any encoder switches all four. A
     # position without one shows its own parameter on both pages.
     if 'press' in value:
+        require(kind == 'synth' and value['press'] == 'page', '"press": "page" is for a synth')
         alternates = control_positions(value)[SYNTH_POSITIONS:]
-        require(kind == 'synth' and value['press'] == 'page' and alternates and
-                len(set(alternates)) == len(alternates),
+        require(alternates and len(set(alternates)) == len(alternates),
                 '"press": "page" is for a synth with five to eight parameters: each position has at most one alternate')
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
     for name, preset in value['presets'].items():
