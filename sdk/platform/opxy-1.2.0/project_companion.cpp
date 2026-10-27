@@ -18,16 +18,16 @@ namespace {
 typedef void File;
 // newlib, as stock's project reader and writer call it (8d58f184, 8d58f230, 8d58f70c, 8d58f1aa).
 File* file_open(const char* path, const char* mode) {
-    return stock<File*(const char*, const char*)>(0x8fed0350)(path, mode);
+    return stock<File*(const char*, const char*)>(0x8fed0348)(path, mode);
 }
 u32 file_read(void* data, u32 size, u32 count, File* file) {
-    return stock<u32(void*, u32, u32, File*)>(0x8fed05c8)(data, size, count, file);
+    return stock<u32(void*, u32, u32, File*)>(0x8fed05bc)(data, size, count, file);
 }
 u32 file_write(const void* data, u32 size, u32 count, File* file) {
-    return stock<u32(const void*, u32, u32, File*)>(0x8fed078c)(data, size, count, file);
+    return stock<u32(const void*, u32, u32, File*)>(0x8fed0780)(data, size, count, file);
 }
-void file_close(File* file) { stock<int(File*)>(0x8fed00b6)(file); }
-u32 save(void* project, const char* path) { return stock<u32(void*, const char*)>(0x8d5973ac)(project, path); }
+void file_close(File* file) { stock<int(File*)>(0x8fed00ae)(file); }
+u32 save(void* project, const char* path) { return stock<u32(void*, const char*)>(0x8d599074)(project, path); }
 
 const u32 kPathBytes = 256;
 const u32 kTextBytes = 8192;

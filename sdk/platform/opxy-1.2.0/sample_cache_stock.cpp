@@ -30,12 +30,12 @@ using opxy::i32;
 using opxy::u32;
 using opxy::platform::stock;
 using opxy::platform::word;
-const u32 kHeap = 0x0802d0b0;           // stock heap: mutex, then pool
-const u32 kSampleManager = 0x8404599c;  // stock sample cache manager pointer
-const u32 kSendState = 0x8429e150;      // desired-list send state: +12 sent sum, +16 current sum
-const u32 kOldSum = 0x840364fc;         // the gather's previous path sum
-const u32 kPendingTracks = 0x842a3c2c;  // gather's pending track list (sample_cache.cpp PendingTrack)
-const u32 kPendingCount = 0x842a402c;
+const u32 kHeap = 0x8036aa4;           // stock heap: mutex, then pool
+const u32 kSampleManager = 0x84048894;  // stock sample cache manager pointer
+const u32 kSendState = 0x84297630;      // desired-list send state: +12 sent sum, +16 current sum
+const u32 kOldSum = 0x840393d0;         // the gather's previous path sum
+const u32 kPendingTracks = 0x8429d1ac;  // gather's pending track list (sample_cache.cpp PendingTrack)
+const u32 kPendingCount = 0x8429d5ac;
 bool analysis_ready() { return opxy::platform::any_sample_analysis(); }
 }
 
@@ -64,46 +64,46 @@ u32 sdk_sample_cache_message_priority(const unsigned char* message) {
 // 8d4d0ddc's lock, allocate and unlock on the stock heap, returning null on
 // exhaustion instead of calling its fatal error reporter.
 void* sdk_sample_cache_alloc(u32 bytes) {
-    stock<void(u32, i32)>(0x8c03e6fc)(word(kHeap), -1);
-    void* const block = stock<void*(u32, u32)>(0x8c048cf8)(word(kHeap + 4), bytes);
-    stock<void(u32, u32, u32, u32)>(0x8c03e9d0)(word(kHeap), 0, 0, 0);
+    stock<void(u32, i32)>(0x8c03e6f4)(word(kHeap), -1);
+    void* const block = stock<void*(u32, u32)>(0x8c048788)(word(kHeap + 4), bytes);
+    stock<void(u32, u32, u32, u32)>(0x8c03e9c8)(word(kHeap), 0, 0, 0);
     return block;
 }
-void sdk_sample_cache_free(void* block) { stock<void(void*)>(0x8d4d32b4)(block); }
-u32 sdk_sample_cache_stock_hash(const char* path) { return stock<u32(const char*)>(0x8d4e7e9a)(path); }
-void sdk_sample_cache_keys_lock() { stock<void(u32)>(0x8d5bc1aa)(word(kSampleManager)); }
-void sdk_sample_cache_keys_unlock() { stock<void(u32)>(0x8d5bc1c2)(word(kSampleManager)); }
+void sdk_sample_cache_free(void* block) { stock<void(void*)>(0x8d4d2910)(block); }
+u32 sdk_sample_cache_stock_hash(const char* path) { return stock<u32(const char*)>(0x8d4e813a)(path); }
+void sdk_sample_cache_keys_lock() { stock<void(u32)>(0x8d5be032)(word(kSampleManager)); }
+void sdk_sample_cache_keys_unlock() { stock<void(u32)>(0x8d5be060)(word(kSampleManager)); }
 const void* sdk_sample_cache_sample_acquire(u32 key) {
-    return stock<const void*(u32, u32)>(0x8d509720)(word(kSampleManager), key);
+    return stock<const void*(u32, u32)>(0x8d509d70)(word(kSampleManager), key);
 }
-void sdk_sample_cache_sample_release(u32 key) { stock<void(u32, u32)>(0x8d5097a8)(word(kSampleManager), key); }
+void sdk_sample_cache_sample_release(u32 key) { stock<void(u32, u32)>(0x8d509df8)(word(kSampleManager), key); }
 
 // 8d50b5d8: eviction found no remaining references. Release the analysis
 // before stock destroys the PCM.
 u32 sdk_sample_cache_destroy(void* object) {
     sdk_sample_cache_release(object);
-    return stock<u32(void*)>(0x8d507be0)(object);
+    return stock<u32(void*)>(0x8d508230)(object);
 }
 // Desired-list additions from the GUI (8d4d9e26) and audio (8d4d8ede) roles.
 // Only GUI additions mark assigned keys; both admit them to the wanted list.
 u32 sdk_sample_cache_gui_add(u32 manager, u32 entry, u32 key, u32 priority) {
     if (analysis_ready()) priority = sdk_sample_cache_accept_key(key, sdk_sample_cache_tag_priority(key, priority));
-    return stock<u32(u32, u32, u32, u32)>(0x8d50b1a4)(manager, entry, key, priority);
+    return stock<u32(u32, u32, u32, u32)>(0x8d50b7f4)(manager, entry, key, priority);
 }
 u32 sdk_sample_cache_audio_add(u32 manager, u32 entry, u32 key, u32 priority) {
     if (analysis_ready()) priority = sdk_sample_cache_accept_key(key, priority);
-    return stock<u32(u32, u32, u32, u32)>(0x8d50b1a4)(manager, entry, key, priority);
+    return stock<u32(u32, u32, u32, u32)>(0x8d50b7f4)(manager, entry, key, priority);
 }
 // Stock reset locks manager+0 until commit; wanted keys reset in the same
 // transaction (8d4d9dde, 8d4d8e88).
 u32 sdk_sample_cache_reset(u32 manager) {
-    const u32 result = stock<u32(u32)>(0x8d5096fc)(manager);
+    const u32 result = stock<u32(u32)>(0x8d509d4c)(manager);
     if (analysis_ready()) sdk_sample_cache_reset_keys();
     return result;
 }
 // 8d50bf1c: after the stock file worker loads assigned samples, prepare analysis.
 u32 sdk_sample_cache_worker(u32 manager) {
-    const u32 result = stock<u32(u32)>(0x8d50b620)(manager);
+    const u32 result = stock<u32(u32)>(0x8d50bca0)(manager);
     if (analysis_ready()) sdk_sample_cache_prepare_keys();
     return result;
 }
@@ -111,7 +111,7 @@ u32 sdk_sample_cache_worker(u32 manager) {
 // desired list when assignment membership changed without changing paths.
 u32 sdk_sample_cache_send() {
     const bool unchanged = word(kSendState + 12) == word(kSendState + 16);
-    const u32 result = stock<u32()>(0x8d4d9ce4)();
-    if (analysis_ready() && sdk_sample_cache_take_force_send() && unchanged) stock<void(u32)>(0x8d4d941c)(1);
+    const u32 result = stock<u32()>(0x8d4da8c8)();
+    if (analysis_ready() && sdk_sample_cache_take_force_send() && unchanged) stock<void(u32)>(0x8d4da2d0)(1);
     return result;
 }

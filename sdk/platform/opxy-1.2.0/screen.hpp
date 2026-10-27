@@ -13,8 +13,8 @@ namespace opxy { namespace screen { namespace {
 using platform::stock;
 typedef u32 __attribute__((may_alias)) word;
 
-const u32 kPathLeaf = 0x840c1a40;  // vtable of a stock SVG path leaf
-const u32 kTextLeaf = 0x840c1ecc;  // vtable stored by the stock text constructor 0x8d5fecb0
+const u32 kPathLeaf = 0x840c4d74;  // vtable of a stock SVG path leaf
+const u32 kTextLeaf = 0x840c5158;  // vtable stored by the stock text constructor 0x8d600e20
 
 // A stock vector of records.
 struct Vector { u32 begin, end, capacity; };
@@ -56,24 +56,24 @@ struct Base {
 static_assert(sizeof(Base) == 76 && __builtin_offsetof(Base, values) == 24, "Stock 1.2.0 screen object");
 
 inline void base_construct(Base* o, u32 page, const char* asset) {
-    stock<void(Base*, u32, const char*)>(0x8d51fc7c)(o, page, asset);
+    stock<void(Base*, u32, const char*)>(0x8d520844)(o, page, asset);
 }
-inline void base_destroy(Base* o) { stock<void(Base*)>(0x8d51f1f0)(o); }
+inline void base_destroy(Base* o) { stock<void(Base*)>(0x8d51fdb8)(o); }
 // Binds child i of the template's `values` group to values[i] and of `titles` to titles[i].
-inline void bind_controls(Base* o) { stock<void(Leaf**, Base*, u32)>(0x8d520b3c)(o->values, o, 0); }
+inline void bind_controls(Base* o) { stock<void(Leaf**, Base*, u32)>(0x8d521704)(o->values, o, 0); }
 inline void* find(Base* o, const char* id) { return platform::find_node(o, id); }
-inline void draw(Base* o) { stock<void(Base*, u32)>(0x8d51f254)(o, 0); }
+inline void draw(Base* o) { stock<void(Base*, u32)>(0x8d51fe1c)(o, 0); }
 inline u32 selected_track() { return platform::selected_track(); }
-inline const Parameters* parameters(u32 track) { return stock<const Parameters*(u32)>(0x8d4d7c60)(track); }
+inline const Parameters* parameters(u32 track) { return stock<const Parameters*(u32)>(0x8d4d72a8)(track); }
 inline void update_controls(Base* o, u32 track, const Parameters* p) {
-    stock<void(Leaf**, u32, const Parameters*)>(0x8d545ae4)(o->values, track, p);
+    stock<void(Leaf**, u32, const Parameters*)>(0x8d5466ac)(o->values, track, p);
 }
-inline u32 note_serial(u32 track) { return stock<u32(u32)>(0x8d4d75c0)(track); }
-inline void set_matrix(Leaf* node, const i32* matrix) { stock<void(Leaf*, const i32*)>(0x8d5ee7de)(node, matrix); }
+inline u32 note_serial(u32 track) { return stock<u32(u32)>(0x8d4d6c08)(track); }
+inline void set_matrix(Leaf* node, const i32* matrix) { stock<void(Leaf*, const i32*)>(0x8d5f06a6)(node, matrix); }
 inline void set_text(Leaf* node, const char* text) { platform::set_text(node, text); }
-inline void set_fill(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5f8abe)(node, id); }
-inline void set_stroke(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5f8a9e)(node, id); }
-inline void invalidate(PathNode* node) { stock<void(PathNode*)>(0x8d5f8afc)(node); }
+inline void set_fill(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5fa986)(node, id); }
+inline void set_stroke(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5fa966)(node, id); }
+inline void invalidate(PathNode* node) { stock<void(PathNode*)>(0x8d5fa9c4)(node); }
 
 // Only stock leaves of the expected kind are ever passed to their setters.
 inline PathNode* path_node(void* node) {
@@ -230,8 +230,8 @@ template <class Renderer> struct VTable {
     const char opxy_screen_asset[] = ASSET;                                                                \
     const opxy::screen::VTable<Renderer> opxy_screen_vtable = {                                            \
         &opxy::screen::destroy<Renderer::Object>, &opxy::screen::destroy<Renderer::Object>,                \
-        reinterpret_cast<const void*>(0x8d51f10c), &Renderer::frame, &Renderer::init,                      \
-        reinterpret_cast<const void*>(0x8c087324)};                                                        \
+        reinterpret_cast<const void*>(0x8d51fcd4), &Renderer::frame, &Renderer::init,                      \
+        reinterpret_cast<const void*>(0x8c0867f0)};                                                        \
     Renderer::Object* opxy_screen_ctor(Renderer::Object* o, opxy::u32 page) {                              \
         return opxy::screen::construct(o, page, PAGE_LIMIT, opxy_screen_asset, &opxy_screen_vtable);       \
     }                                                                                                      \

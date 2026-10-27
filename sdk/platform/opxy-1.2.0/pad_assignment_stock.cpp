@@ -26,12 +26,12 @@ opxy::u32 sdk_sample_retry(opxy::u32, opxy::u32) __asm__("sdk_sample_retry");
 namespace {
 using opxy::u32;
 using namespace opxy::platform;
-const u32 kJob = 0x0801f7f8;                // header worker job: +0 raw key, +4 track, +12 generation
-const u32 kActiveGeneration = 0x0801f804;
-const u32 kPendingGeneration = 0x0801f6a0;
-const u32 kActivePath = 0x0801f7dc;         // the worker's own path, never the browser's pending choice
-const u32 kWorkerBusy = 0x0801f7bc;         // byte
-const u32 kInitializeRegion = 0x8d588224;   // (track, key, ...) initializes a new pad region
+const u32 kJob = 0x801f440;                // header worker job: +0 raw key, +4 track, +12 generation
+const u32 kActiveGeneration = 0x801f44c;
+const u32 kPendingGeneration = 0x801f2e8;
+const u32 kActivePath = 0x801f424;         // the worker's own path, never the browser's pending choice
+const u32 kWorkerBusy = 0x801f404;         // byte
+const u32 kInitializeRegion = 0x8d589b8c;   // (track, key, ...) initializes a new pad region
 const u32 kStockRate = 44100;   // the recorder's rate; assumed without verified header metadata
 bool owned(u32 track) { return track < kTracks && pad_settings(track_engine(track)); }
 
@@ -64,12 +64,12 @@ u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* 
 // 8c0a2cee: the header worker holds this reader until its completion is
 // queued. Keep stock's full frame count; the rate is another constant-time getter.
 u32 sdk_sample_assignment_frames(u32 reader) {
-    const u32 frames = stock<u32(u32)>(0x8d4fd146)(reader);
+    const u32 frames = stock<u32(u32)>(0x8d4fd436)(reader);
     hint.valid = 0;
     barrier();
     const u32 track = word(kJob + 4), key = word(kJob), generation = word(kJob + 12);
     if (!owned(track)) return frames;
-    hint.rate = stock<u32(u32)>(0x8d4fd12c)(reader);
+    hint.rate = stock<u32(u32)>(0x8d4fd41c)(reader);
     hint.track = track;
     hint.key = key;
     hint.generation = generation;

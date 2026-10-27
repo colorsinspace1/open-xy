@@ -27,7 +27,7 @@ sdk_screen_advance:
     RTS;
 .size sdk_screen_advance, .-sdk_screen_advance
 
-/* 8d53aa6e: the send page's value-text CALL 0x8d5ff080 (R0 = widget, R1 =
+/* 8d53aa6e: the send page's value-text CALL 0x8d6011f0 (R0 = widget, R1 =
  * text), inside the loop over positions. R7 holds the position and P5 the
  * parameter vector, whose first field [P5 + 4] points to its Q31 words (stock
  * reads word i there and prints it as 00-99); R7 and P5 are callee-saved, so

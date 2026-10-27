@@ -14,7 +14,7 @@ extern "C" opxy::u32 sdk_note_off(opxy::u32 track, opxy::u32 note) {
     const bool held = track < kTracks && note < 128 && byte(kNoteMap + track * 128 + note);
     // Always delegate, including unowned engines and tracks outside the display
     // API. Preserve stock's return value and exactly one clear per call.
-    const opxy::u32 result = stock<opxy::u32(opxy::u32, opxy::u32)>(0x8d5b5ea4)(track, note);
+    const opxy::u32 result = stock<opxy::u32(opxy::u32, opxy::u32)>(0x8d5b7d2c)(track, note);
     if (held) ++releases[track];
     return result;
 }

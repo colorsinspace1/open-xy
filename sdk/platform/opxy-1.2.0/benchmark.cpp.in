@@ -17,24 +17,24 @@ const Machine machines[] = {
 @MACHINES@
     {0, 0, 0, 0, 0}
 };
-// 0x8d57b8f0: stock benchmark-one(controller, record, index, total).
+// 0x8d57c848: stock benchmark-one(controller, record, index, total).
 // It sets knobs 0..3 to midpoint, holds note 60/velocity 127 for 1000
 // 64-sample blocks, releases for 500, and emits one 120-byte report.
 void run(const Test* test, u32 index, u32 total) {
-    stock<void(void*, const Test*, u32, u32)>(0x8d57b8f0)(at<void>(0x84c70fac), test, index, total);
+    stock<void(void*, const Test*, u32, u32)>(0x8d57c848)(at<void>(0x84c696fc), test, index, total);
 }
 }
 
 namespace opxy { namespace benchmark {
 void* allocate(u32 bytes) {
     if (!bytes || bytes > 4u * 1024u * 1024u) return nullptr;
-    const u32 heap = 0x0802d0b0;
-    stock<void(u32, i32)>(0x8c03e6fc)(word(heap), -1);
-    void* block = stock<void*(u32, u32)>(0x8c048cf8)(word(heap + 4), bytes);
-    stock<void(u32, u32, u32, u32)>(0x8c03e9d0)(word(heap), 0, 0, 0);
+    const u32 heap = 0x8036aa4;
+    stock<void(u32, i32)>(0x8c03e6f4)(word(heap), -1);
+    void* block = stock<void*(u32, u32)>(0x8c048788)(word(heap + 4), bytes);
+    stock<void(u32, u32, u32, u32)>(0x8c03e9c8)(word(heap), 0, 0, 0);
     return block;
 }
-void release(void* block) { stock<void(void*)>(0x8d4d32b4)(block); }
+void release(void* block) { stock<void(void*)>(0x8d4d2910)(block); }
 }}
 
 // Existing diagnostics own these local timing records during command 0xc8.
@@ -42,22 +42,22 @@ void release(void* block) { stock<void(void*)>(0x8d4d32b4)(block); }
 // whole stock voice. An inactive/failed fixture emits zero and the host refuses it.
 static void callback_report(const Machine& machine) {
     const opxy::benchmark::Stats value = machine.callback();
-    stock<void()>(0x8c0c84c0)();
+    stock<void()>(0x8c0c7908)();
     if (value.audible && value.count == opxy::benchmark::blocks) {
-        volatile u32* record = at<volatile u32>(0x08025264 + 0x2c * machine.metric);
+        volatile u32* record = at<volatile u32>(0x8034f3c + 0x2c * machine.metric);
         record[4] = value.maximum; record[5] = 0;
         record[6] = value.minimum; record[7] = 0;
         record[8] = value.total_low; record[9] = value.total_high;
         record[10] = value.count;
     }
-    stock<void(u32)>(0x8c0c8524)(opxy::benchmark::blocks);
+    stock<void(u32)>(0x8c0c796c)(opxy::benchmark::blocks);
 }
 
 void sdk_benchmark_run() {
     u32 total = 9;
     for (u32 i = 0; machines[i].ready; ++i)
         if (machines[i].ready() == 1) ++total;
-    for (u32 i = 0; i < 9; ++i) run(at<const Test>(0x8409bf18) + i, i, total);
+    for (u32 i = 0; i < 9; ++i) run(at<const Test>(0x8409f3b4) + i, i, total);
     u32 index = 9;
     for (u32 i = 0; machines[i].ready; ++i) {
         const Machine& machine = machines[i];

@@ -219,7 +219,7 @@ def main(argv=None):
         if a.mode == 'benchmark':
             if VERIFIED_BENCHMARK_ROUTE != a.route:
                 raise RuntimeError('Benchmark endpoint routing unverified; command not sent')
-            if ident.get('mode') != 'normal' or ident.get('product') not in ('OP-XY', 'OP-1') or ident.get('os_version') != '1.2.0':
+            if ident.get('mode') != 'normal' or ident.get('product') not in ('OP-XY', 'OP-1') or ident.get('os_version') not in ('1.2.0', '1.2.1'):
                 raise RuntimeError('Normal OS identity not confirmed; benchmark not sent')
             send(0xc8)
             receive(a.seconds)

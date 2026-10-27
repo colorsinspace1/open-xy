@@ -55,7 +55,7 @@ sdk_sample_assign_owned:
     R2 = 0;
     [SP + 12] = R2;
     R2 = 60;
-    P0 = 0x8d588224;
+    P0 = 0x8d589b8c;
     CALL (P0);
 .global sdk_sample_assign_owned_return
 sdk_sample_assign_owned_return:
