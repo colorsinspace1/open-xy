@@ -27,9 +27,11 @@ is the reference for each of them.
 ## More than four controls
 
 - **Two pages.** A synth with five to eight parameters uses
-  [`"press": "page"`](api.md#alternate-controls) with all eight: page 1 holds
-  what is played most, page 2 the rest. A press of any encoder switches all
-  four, so a press means the same thing everywhere.
+  [`"press": "page"`](api.md#alternate-controls): page 1 holds what is played
+  most, page 2 the rest. A press of any encoder switches all four, so a press
+  means the same thing everywhere. With fewer than eight, a position without
+  an alternate keeps its parameter on page 2 too, and page 2's row shows it
+  again.
 - **Show both pages in place.** Page 1 stays on top and page 2 under it; a
   press does not swap them. The page the encoders edit is the stock header's
   size and sits on the stepped bar; the other is smaller and grey. Cover the

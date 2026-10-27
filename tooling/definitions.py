@@ -150,12 +150,14 @@ def validate_definition(value, kind):
         validate_parameter(parameter, alternate)
         require(parameter['id'] not in names, 'Duplicate parameter identity')
         names.add(parameter['id'])
-    # A paged synth's eight parameters are two pages of four: each position has
-    # exactly one alternate, and a press of any encoder switches all four.
+    # A paged synth's parameters are two pages of four: each position has at
+    # most one alternate, and a press of any encoder switches all four. A
+    # position without one shows its own parameter on both pages.
     if 'press' in value:
-        require(kind == 'synth' and value['press'] == 'page' and len(parameters) == 8 and
-                sorted(control_positions(value)[SYNTH_POSITIONS:]) == list(range(SYNTH_POSITIONS)),
-                '"press": "page" is for a synth with eight parameters: each position has exactly one alternate')
+        alternates = control_positions(value)[SYNTH_POSITIONS:]
+        require(kind == 'synth' and value['press'] == 'page' and alternates and
+                len(set(alternates)) == len(alternates),
+                '"press": "page" is for a synth with five to eight parameters: each position has at most one alternate')
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
     for name, preset in value['presets'].items():
         label(name); keys(preset, names, 'preset')

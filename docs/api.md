@@ -139,11 +139,13 @@ every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
 
-A synth with eight parameters, each position with exactly one alternate, may
-declare `"press": "page"` at the top of `definition.json` (SDK 1.3): its four
-own parameters are page 1, its alternates page 2, and pressing any encoder
-switches all four positions to the other page. `shown` tells the display
-which page is up. Browser previews show the page of the parameter last
+A synth with five to eight parameters, each position with at most one
+alternate, may declare `"press": "page"` at the top of `definition.json`
+(SDK 1.3): its four own parameters are page 1, its alternates page 2, and
+pressing any encoder switches all four positions to the other page. A
+position without an alternate shows its own parameter on both pages. `shown`
+tells the display which page is up; read it at a position that has an
+alternate. Browser previews show the page of the parameter last
 edited. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
 which draws its own header: both pages in two rows, the page the encoders edit
