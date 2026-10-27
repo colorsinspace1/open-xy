@@ -125,8 +125,41 @@ def port_edits(source, target, profile):
     return rows
 
 
-def port_addresses(source, target, anchors):
-    """anchors: (source address, file offset shift) of verified edits, to place repeated code."""
+def constant_loads(image):
+    """{constant: [file offset]} and {file offset: constant} of 32-bit constants in Blackfin+
+    64-bit instructions (0xD8xx-0xDBxx: a register load or an absolute memory access, the
+    high then low half-word of the address following the opcode), which is how stock code
+    addresses its data."""
+    by_value, by_offset = {}, {}
+    for block in image.blocks:
+        start, count = block['offset'] + 16, block['count'] & ~1
+        if block['target'] & 1 or count < 8:
+            continue
+        words = np.frombuffer(image.data[start: start + count], '<u2')
+        for i in np.flatnonzero((words[:-3] & 0xfc00) == 0xd800).tolist():
+            constant, at = int(words[i + 1]) << 16 | int(words[i + 2]), start + 2 * i
+            by_value.setdefault(constant, []).append(at)
+            by_offset[at] = constant
+        # Calls reach stock functions: an absolute call (0xDE00, high, low, 0) or a
+        # PC-relative CALL (0xE3xx); their targets are constants of the same kind.
+        for i in np.flatnonzero(words[:-3] == 0xde00).tolist():
+            if words[i + 3] == 0:
+                constant, at = int(words[i + 1]) << 16 | int(words[i + 2]), start + 2 * i
+                by_value.setdefault(constant, []).append(at)
+                by_offset[at] = constant
+        for i in np.flatnonzero((words[:-1] & 0xff00) == 0xe300).tolist():
+            at = start + 2 * i
+            constant = call_target(block['target'] + 2 * i, image.data[at: at + 4])
+            if constant is not None:
+                by_value.setdefault(constant, []).append(at)
+                by_offset[at] = constant
+    return by_value, by_offset
+
+
+def port_addresses(source, target, anchors, edits=(), own=()):
+    """anchors: (source file offset, file offset shift) of verified matches, to place repeated code;
+    edits: the edit rows, whose sites tooling also names; own: (start, end, shift) of SDK-owned
+    memory (the module reservation), which moves with the stock heap rather than by content."""
     found = {}
     for name in SOURCES:
         path = ROOT / name
@@ -134,19 +167,61 @@ def port_addresses(source, target, anchors):
             if file.is_file():
                 for match in ADDRESS.finditer(file.read_text(encoding='utf-8', errors='replace')):
                     found.setdefault(int(match.group(), 16), set()).add(str(file.relative_to(ROOT).as_posix()))
+    shift = lambda offset: min(anchors, key=lambda a: abs(a[0] - offset))[1] if anchors else 0
+    source_loads, _ = constant_loads(source)
+    _, target_loads = constant_loads(target)
+    bases = sorted(source_loads)
+
+    def by_references(address):
+        # The code that loads the address, or the struct it lies in (within 1 KiB), found in
+        # the target; the constant it loads there, plus the same field offset, by majority.
+        import bisect
+        i = bisect.bisect_right(bases, address) - 1
+        if i < 0 or address - bases[i] > 1024:
+            return None, 0
+        base = bases[i]
+        votes = {}
+        for at in source_loads[base][:12]:
+            new, agree, margin = locate(source, target, at, 8, context=24, expected=at + shift(at))
+            if new is None or agree < AGREE:
+                continue
+            # The same instruction at the matching place: same opcode, nearest first.
+            opcode = source.data[at: at + 2]
+            for probe in (new, new - 2, new + 2, new - 4, new + 4):
+                if probe in target_loads and target.data[probe: probe + 2] == opcode:
+                    value = target_loads[probe] + address - base
+                    votes[value] = votes.get(value, 0) + 1
+                    break
+        if not votes:
+            return None, 0
+        value = max(votes, key=votes.get)
+        return value, votes[value] / sum(votes.values())
+
+    sites = {int(r['address'], 16): r for r in edits if r['status'] in ('verified', 'located')}
     rows = []
     for address in sorted(found):
         row = dict(address=hex(address), files=sorted(found[address]))
-        offset = source.offset(address)
-        if offset is None:
-            rows.append(dict(row, status='review', reason='not stored in the image (RAM or a fill): map by references'))
+        if address in sites:
+            rows.append(dict(row, status='mapped', target_address=sites[address]['target_address'], how='edit site'))
             continue
-        shift = min(anchors, key=lambda a: abs(a[0] - address))[1] if anchors else 0
-        new, agree, margin = locate(source, target, offset, 16, context=16, expected=offset + shift)
-        if new is None or agree < AGREE or margin < MARGIN:
-            rows.append(dict(row, status='review', reason=f'no confident match (agreement {agree:.2f})'))
+        moved = next((shift for low, high, shift in own if low <= address < high), None)
+        if moved is not None:
+            rows.append(dict(row, status='mapped', target_address=hex(address + moved), how='SDK reservation'))
+            continue
+        offset = source.offset(address)
+        if offset is not None:
+            new, agree, margin = locate(source, target, offset, 16, context=16, expected=offset + shift(offset))
+            if new is not None and agree >= AGREE and margin >= MARGIN:
+                rows.append(dict(row, status='mapped', target_address=hex(target.address(new)), how='bytes',
+                                 agree=round(agree, 3)))
+                continue
+        value, share = by_references(address)
+        if value is not None and share >= 0.75:
+            rows.append(dict(row, status='mapped', target_address=hex(value), how='references', agree=round(share, 3)))
         else:
-            rows.append(dict(row, status='mapped', target_address=hex(target.address(new)), agree=round(agree, 3)))
+            rows.append(dict(row, status='review',
+                             reason='no confident match by bytes or by the code that loads it' +
+                                    (f' (references disagree: {share:.0%})' if value is not None else '')))
     return rows
 
 
@@ -170,9 +245,17 @@ def main(argv=None):
     profile = json.loads(args.profile.read_text(encoding='utf-8'))
     source, target = Image(args.source), Image(args.target)
     edits = port_edits(source, target, profile)
-    addresses = port_addresses(source, target, [(int(r['address'], 16), r['delta']) for r in edits
-                                                if r['status'] == 'verified'])
-    report = dict(source_bytes=len(source.data), target_bytes=len(target.data),
+    # The module reservation sits below stock code at the top of the shrunk heap; stock code
+    # starts where the heap fill ends, so the reservation moves with it.
+    fill = lambda image: max((b for b in ldr(image.data) if b['fill']), key=lambda b: b['count'] if b['count'] < 32 << 20 else 0)
+    old_fill, new_fill = fill(source), fill(target)
+    old_end, new_end = old_fill['target'] + old_fill['count'], new_fill['target'] + new_fill['count']
+    own = [(old_end - profile['reserved_bytes'], old_end, new_end - old_end)]
+    addresses = port_addresses(source, target, [(int(r['target_offset'], 16) - r['delta'], r['delta']) for r in edits
+                                                if r['status'] == 'verified'], edits, own)
+    report_layout = dict(heap_fill_base=hex(new_fill['target']), heap_fill_bytes=new_fill['count'],
+                         module_base=hex(new_end - profile['reserved_bytes']), code_start=hex(new_end))
+    report = dict(source_bytes=len(source.data), target_bytes=len(target.data), target_layout=report_layout,
                   source_regions=regions(source), target_regions=regions(target), edits=edits, addresses=addresses)
     args.out.mkdir(parents=True)
     (args.out / 'report.json').write_text(json.dumps(report, indent=1) + '\n', encoding='utf-8')
