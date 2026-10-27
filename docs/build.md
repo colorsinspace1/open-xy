@@ -190,8 +190,8 @@ python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.1>/
 ```
 
 It independently rebuilds the package (`sdk.py verify`) and runs the fixture
-tests that need the package and stock files, under normal Python and
-`python -O`; missing inputs or skipped tests fail. The sample-service fixtures
+tests that need the package and stock files; missing inputs or skipped tests
+fail. The sample-service fixtures
 need a host C++11 compiler (`--host-cxx`, default `g++`) on PATH. A changed
 source requires a new package, not a manually changed manifest. Public `check`
 ignores inherited fixture variables. A personal build doesn't need this step.

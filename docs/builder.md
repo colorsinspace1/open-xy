@@ -221,7 +221,7 @@ machine's startup and catalog callbacks resolve to `kit_absent`, which declines:
 startup skips it and its menu name is left to stock. Its audio code and state
 are omitted.
 
-The export checks, normally and under `python -O`, that:
+The export checks that:
 
 - selecting every machine reproduces the native `os.ldr` byte for byte;
 - every non-empty selection matches GNU ld, including symbols and BSS;

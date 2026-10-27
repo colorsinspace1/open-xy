@@ -345,8 +345,10 @@ def normalize_object(data):
     require(struct.unpack_from('<H', data, 16)[0] == 1, 'Expected Blackfin ET_REL')
     out = bytearray(data)
     for at, (_name, kind, flags, _addr, offset, size, *_rest) in sections:
-        if kind == 17:  # SHT_GROUP: kept as inert, unallocated bytes
-            struct.pack_into('<II', out, at + 4, 1, 0)
+        if kind == 17:  # SHT_GROUP: deactivate the header without moving section indices
+            # PROGBITS leaves multiple orphan .group sections in GNU's final ELF.
+            # SHT_NULL makes the linker ignore the obsolete group records entirely.
+            struct.pack_into('<II', out, at + 4, 0, 0)
             continue
         struct.pack_into('<I', out, at + 8, flags & ~(0x30 if flags & 2 else 0) & ~0x200)
         if kind == 2:  # the symbol table: defined weak symbols become global

@@ -45,7 +45,7 @@ class Normalize(unittest.TestCase):
                    [(2, 2), (2, 0), (1, 3)])
         out = normalize_object(data)
         headers = [h for _at, h in elf_sections(out)]
-        self.assertEqual(headers[1][1:3], (1, 0), 'the group record is inert, unallocated bytes')
+        self.assertEqual(headers[1][1:3], (0, 0), 'the group header is inactive (SHT_NULL)')
         self.assertEqual(headers[2][2], ALLOC | 0x4)
         self.assertEqual(headers[3][2], ALLOC)
         self.assertEqual(headers[4][2], MERGE_STRINGS, 'unallocated sections keep their pooling flags')
@@ -56,6 +56,27 @@ class Normalize(unittest.TestCase):
         self.assertEqual(len(out), len(data))
         for (_at, before), after in zip(elf_sections(data), headers):
             self.assertEqual(before[3:], after[3:])
+        self.assertEqual(normalize_object(out), out)
+
+    def test_multiple_groups_leave_no_linkable_group_records(self):
+        data = obj([('.group', 17, 0, struct.pack('<II', 1, 3)),
+                    ('.group', 17, 0, struct.pack('<II', 1, 4)),
+                    ('.text.first', 1, ALLOC | 0x4 | GROUP, b'\x01\x02'),
+                    ('.text.second', 1, ALLOC | 0x4 | GROUP, b'\x03\x04')],
+                   [(2, 3), (2, 4)])
+        out = normalize_object(data)
+        before = [h for _at, h in elf_sections(data)]
+        after = [h for _at, h in elf_sections(out)]
+        # Both GNU and the browser must ignore every obsolete group record;
+        # making them PROGBITS instead produces duplicate .group output sections.
+        self.assertEqual([h[1:3] for h in after[1:3]], [(0, 0), (0, 0)])
+        self.assertEqual([h[2] for h in after[3:5]], [ALLOC | 0x4] * 2)
+        self.assertEqual(len(out), len(data))
+        for original, normalized in zip(before, after):
+            self.assertEqual(original[3:], normalized[3:])
+        table = after[5][4]
+        self.assertEqual([struct.unpack_from('<H', out, table + 16 * i + 14)[0]
+                          for i in (1, 2)], [3, 4], 'symbol section indices stay fixed')
         self.assertEqual(normalize_object(out), out)
 
 

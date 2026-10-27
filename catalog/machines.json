@@ -109,11 +109,19 @@
       "id": "hurdygurdy",
       "kind": "synth",
       "maintainer": "SammiBabe666",
-      "status": "draft",
+      "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
-      "tag": "v1.0.0",
-      "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
-      "path": "."
+      "tag": "v1.3.0",
+      "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+        "firmware_sha256": "a753e810d2cf55f25cfbaa747493b97344b2396d98c7327f6057765b3e76b033",
+        "runs": 3,
+        "block_percent": 3.550774,
+        "report": "https://github.com/etcetc000/open-xy/pull/147"
+      }
     },
     {
       "id": "pingpong",
@@ -149,8 +157,8 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-oldsun",
-      "tag": "v0.20.1",
-      "commit": "9511d63a1c7b327a78025a2c8884354d8c76960b",
+      "tag": "v0.20.2",
+      "commit": "93d0cd50fb0a596ed8b54176505abc0d638a1ecd",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
@@ -176,6 +184,23 @@
         "firmware_sha256": "d1860b7af4d675541a714f02a5ba8f1bf02d05ce4d8af13c1b5792900c2c15b9",
         "runs": 3,
         "block_percent": 3.39971
+      }
+    },
+    {
+      "id": "matrixy",
+      "kind": "synth",
+      "maintainer": "frankoooooooo",
+      "status": "published",
+      "repository": "https://github.com/frankoooooooo/matrixy",
+      "tag": "v1.0.1",
+      "commit": "a36ff65728f7701ccf81f0f5f572dbd0e06347b5",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "a36ff65728f7701ccf81f0f5f572dbd0e06347b5",
+        "firmware_sha256": "6a61fd8e7f2f26652c1e0fb7b4bf546d4bdeb2b5c94fb87e77aba16a531b5043",
+        "runs": 3,
+        "block_percent": 2.178988
       }
     }
   ]
