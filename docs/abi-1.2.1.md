@@ -38,7 +38,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
-| Step components | 3 per replaced component | Points a stock step component's methods at a step machine's adapter, and its picker name and ten setting labels at the machine's strings |
+| Step components | 3 per replaced component (2 on a condition key), and 4 hooks with any step machine | Points a stock step component's methods at a step machine's adapter, and its picker name and ten setting labels at the machine's strings; registers condition-key machines and routes condition decisions to them |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -551,11 +551,13 @@ index into the `(numerator, denominator)` pairs at `0x840a0390`;
 answer `next` with the same step until their count, hold also mutes the
 replays and lengthens the first note, multiply answers `trigs`, bend starts
 its curve in `enter`, the ramps count notes in `apply`, and jump answers
-`next`. The conditions (`0x8d583798`) are decided inside the module, not by
-objects, and are not replaceable.
+`next`. The conditions are decided inside the module by `0x8d583798`
+`(manager, track, step, setting byte, kind)`, kind 0 parameter locks, 1 other
+components and 2 the trig, returning nonzero to skip; it counts each step's
+visits for "every Nth".
 
-For a replaced component a build writes three `step` edits, named in the
-profile by its `slot`:
+For a replaced object component a build writes three `step` edits, named in
+the profile by its `slot`:
 
 1. Its method table entries `+0x04`..`+0x28`, pointing at the machine's
    adapter ([`step_object.cpp.in`](../sdk/platform/opxy-1.2.1/step_object.cpp.in)),
@@ -574,3 +576,22 @@ calls the machine's callbacks; a callback the machine doesn't declare behaves
 as stock's empty component. Recovering a build reads which adapter each
 replaced component points at, then accepts the guess only by rebuilding the
 image exactly.
+
+A condition key has no object, so a build replacing one writes only its name
+and label edits. The profile's `steps` service, active in every build with a
+step machine, hooks two calls
+([`step_conditions.cpp`](../sdk/platform/opxy-1.2.1/step_conditions.cpp)):
+
+- The manager's call to register stock's eleven objects (`0x8d583828`): the SDK
+  registers them, then each condition key's step machine object, numbered as
+  that key, so stock calls its methods like any component's.
+- The three calls to the condition decision (`0x8d583996`, `0x8d5839fa`,
+  `0x8d583c26`): a replaced key asks its machine's `plays`, any other keeps
+  stock's rule.
+
+Which machine sits on a condition key is read at run time from the key's
+picker name, which points at the machine's descriptor
+([`step_machines.hpp`](../sdk/platform/opxy-1.2.1/step_machines.hpp)): the
+name, then the object. One module therefore serves any layout. Stock's picker
+stores black key 2 on these keys as setting 2 with a flag in bits 4-5, so the
+adapter passes only the low four bits.

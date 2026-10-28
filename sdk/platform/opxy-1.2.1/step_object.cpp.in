@@ -5,6 +5,7 @@
 // methods here and its picker name and setting labels at these strings
 // (tooling/steps.py), so they keep these symbols.
 #include "step.cpp"
+#include "step_machines.hpp"
 #include "stock.hpp"
 using opxy::u8;
 using opxy::u32;
@@ -20,7 +21,8 @@ void @PREFIX@_step_enter(const void* self, u32 track, u32 step, const u8* settin
 int @PREFIX@_step_next(const void* self, u32 track, u32 step, i32* next, const u8* settings, u8* counts,
                        u8* align) __asm__("@PREFIX@_step_next");
 i32 @PREFIX@_step_trigs(const void* self, u32 track, const u8* settings) __asm__("@PREFIX@_step_trigs");
-extern const char @PREFIX@_step_name[16] __asm__("@PREFIX@_step_name");
+int @PREFIX@_step_plays(const void* self, u32 track, u32 step, u32 setting) __asm__("@PREFIX@_step_plays");
+extern opxy::platform::StepDescriptor @PREFIX@_step_name __asm__("@PREFIX@_step_name");
 extern const char @PREFIX@_step_settings[20][16] __asm__("@PREFIX@_step_settings");
 }
 namespace {
@@ -88,5 +90,22 @@ int @PREFIX@_step_next(const void* self, u32 track, u32 step, i32* next, const u
     if (track >= opxy::step_tracks || value >= opxy::step_settings) return 0;
 @NEXT@
 }
-const char @PREFIX@_step_name[16] = "@NAME@";
+int @PREFIX@_step_plays(const void*, u32 track, u32 step, u32 value) {
+    if (track >= opxy::step_tracks || value >= opxy::step_settings) return 1;
+@PLAYS@
+}
+namespace {
+int unused() { return 0; }
+// The object's method table on a condition key (+0x00 .. +0x28), as stock's
+// component objects have; +0x00, +0x18 and +0x24 are never called.
+const void* const methods[11] = {
+    reinterpret_cast<const void*>(&unused), reinterpret_cast<const void*>(&@PREFIX@_step_reset_all),
+    reinterpret_cast<const void*>(&@PREFIX@_step_reset_track), reinterpret_cast<const void*>(&@PREFIX@_step_condition),
+    reinterpret_cast<const void*>(&@PREFIX@_step_apply), reinterpret_cast<const void*>(&@PREFIX@_step_mute),
+    reinterpret_cast<const void*>(&unused), reinterpret_cast<const void*>(&@PREFIX@_step_enter),
+    reinterpret_cast<const void*>(&@PREFIX@_step_next), reinterpret_cast<const void*>(&unused),
+    reinterpret_cast<const void*>(&@PREFIX@_step_trigs)};
+}
+// The picker's name first; on a condition key the SDK registers the object after it.
+opxy::platform::StepDescriptor @PREFIX@_step_name = {"@NAME@", methods, 0, 0, @PLAYS_POINTER@};
 const char @PREFIX@_step_settings[20][16] = {@LABELS@};

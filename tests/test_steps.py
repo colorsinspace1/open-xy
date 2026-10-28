@@ -15,6 +15,7 @@ from machine_fixtures import FOLDER, fixture
 
 SLOTS = ['pulse', 'hold', 'multiply', 'velocity', 'ramp_up', 'ramp_down', 'random', 'portamento', 'bend',
          'tonality', 'jump']
+CONDITIONS = ['skip_param', 'skip_component', 'skip_trig']
 # Stock 1.2.1's unused method-table entries (+0x18, +0x24) stay its no-ops.
 METHODS = ['reset_all', 'reset_track', 'condition', 'apply', 'mute', '0x8d582da4', 'enter', 'next', '0x8d582d80',
            'trigs']
@@ -26,16 +27,28 @@ class StepEdits(unittest.TestCase):
         self.edits = [p for p in self.profile['patches'] if p['kind'] == 'step']
 
     def test_replaceable_components_and_their_edits(self):
-        # The eleven object components in white-key order; the conditions are stock's own.
-        self.assertEqual(steps.slots(self.profile), SLOTS)
-        # Each: its methods +0x04..+0x28, its picker name and its ten setting rows.
+        # All fourteen keys in white-key order.
+        self.assertEqual(steps.slots(self.profile), SLOTS + CONDITIONS)
+        # An object component: its methods +0x04..+0x28, picker name and ten setting rows; a
+        # condition key has no object, so its name and rows only.
         self.assertEqual([(p['slot'], p['length'], p['words']) for p in self.edits],
                          [row for slot in SLOTS for row in ((slot, 40, METHODS), (slot, 4, ['name']),
-                                                            (slot, 80, ['settings']))])
+                                                            (slot, 80, ['settings']))] +
+                         [row for slot in CONDITIONS for row in ((slot, 4, ['name']), (slot, 80, ['settings']))])
         self.assertEqual(self.profile['patches'][-1]['kind'], 'startup')
-        # Every replaced method is the stock one: the names and rows follow the component numbers.
         names = [int(p['address'], 16) for p in self.edits if p['words'] == ['name']]
-        self.assertEqual(names, [0x8400d4a4 + 4 * t for t in range(11)])
+        self.assertEqual(names, [0x8400d4a4 + 4 * t for t in range(14)])
+
+    def test_condition_keys_are_hooked_only_in_step_builds(self):
+        # Registration after stock's objects, and the three condition decisions.
+        hooks = [p for p in self.profile['patches'] if p.get('service') == 'steps']
+        self.assertEqual([(p['address'], p['symbol'], p['call'], p['length']) for p in hooks],
+                         [('0x8d583828', 'sdk_step_register', True, 4)] +
+                         [(a, 'sdk_step_condition', True, 4) for a in ('0x8d583996', '0x8d5839fa', '0x8d583c26')])
+        self.assertEqual(self.profile['services']['steps'], ['step'])
+        for hook in hooks:
+            self.assertFalse(patch_active(hook, {'samples'}))
+            self.assertTrue(patch_active(hook, {'steps'}))
 
     def test_computed_bytes_point_into_the_module(self):
         symbols = {'probestep_step_' + m: 0x8d2d1000 + 4 * i for i, m in enumerate(steps.METHODS)}
@@ -72,7 +85,7 @@ class StepEdits(unittest.TestCase):
         for change in cases:
             with self.subTest(change=change):
                 profile = copy.deepcopy(self.profile)
-                profile['patches'][-2].update(change)  # jump's setting rows
+                [p for p in profile['patches'] if p['kind'] == 'step'][-1].update(change)  # skip trig's rows
                 with self.assertRaises(ValueError):
                     check_patch_boundaries(profile, len(profile['patches']))
         # A build's profile carries the bytes, and an unreplaced slot keeps stock's.

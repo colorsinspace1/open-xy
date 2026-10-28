@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'f57338b8719441b2f7b774113a6a615025865dbba2c953b47ef64d763ef3b910';
+export const PROFILE_SHA256 = '04d7514bc5120e54227fa19a587537bdf993f737867517d10ce5d1b1b7da36ef';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -582,17 +582,17 @@ function presentMachines(kit, payload) {
   }).map(m => m.id);
 }
 // The stock step components an uploaded build's step machines replace: each replaced
-// component's per-note word holds its machine's adapter, at the address any slot
+// key's picker name points at its machine's descriptor, at the address any slot
 // assignment links it to. Only a guess for the layout; recoverFirmware accepts it
 // only by rebuilding the image exactly.
 function presentSteps(kit, input, selected, layout) {
   const machines = kit.machines.filter(m => selected.includes(m.id) && m.kind === 'step');
   if (!machines.length) return layout;
   const linked = linkKit(kit, selected, layout);
-  const owners = new Map(machines.map(m => [linked.globals.get(m.prefix + '_step_apply'), m.id]));
+  const owners = new Map(machines.map(m => [linked.globals.get(m.prefix + '_step_name'), m.id]));
   const hints = {...(layout ?? {})};
-  for (const edit of kit.profile.patches) if (edit.kind === 'step' && edit.words.includes('apply')) {
-    const word = view(input).getUint32(Number(edit.file_offset) + 4 * edit.words.indexOf('apply'), true);
+  for (const edit of kit.profile.patches) if (edit.kind === 'step' && edit.words.includes('name')) {
+    const word = view(input).getUint32(Number(edit.file_offset) + 4 * edit.words.indexOf('name'), true);
     if (owners.has(word)) hints[owners.get(word)] = {step: edit.slot};
   }
   return hints;

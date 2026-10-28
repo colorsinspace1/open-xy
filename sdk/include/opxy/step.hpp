@@ -19,6 +19,7 @@ namespace opxy {
 //   bool mute(Track& track, const opxy::StepContext& at, opxy::u32 setting);
 //   void apply(Track& track, const opxy::StepContext& at, opxy::StepNote& note, opxy::u32 setting);
 //   bool next(Track& track, const opxy::StepContext& at, opxy::u32 setting, opxy::StepNext& next);
+//   bool plays(Track& track, const opxy::StepContext& at, opxy::u32 setting);
 //
 // When stock calls them, for a step that has the component:
 // - reset: at sequencer start for every track, and when a track restarts.
@@ -33,6 +34,10 @@ namespace opxy {
 //   ramps, random, portamento, bend, tonality, jump); the first true wins.
 // - condition: before the step's "skip component" condition is checked; false
 //   ignores it (stock pulse and hold do so while repeating).
+// - plays: only on the three condition keys, which decide whether the step's
+//   trig (skip trig), parameter locks (skip param) or other components (skip
+//   comp) happen; false skips them. Without plays they always happen. Stock's
+//   picker stores black key 2 on these keys as setting 2, like key 3.
 // All run in the sequencer's real-time path: keep them short, with no
 // allocation, blocking or I/O.
 struct StepContext {

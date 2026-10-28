@@ -4,12 +4,11 @@
 // lets them replace (core.mjs stepSlots); every other key stays stock.
 // Original drawing after the OP–XY layout: https://teenage.engineering/guides/op-xy/step-components
 
-// Stock components in white-key order as [profile slot, name the guide gives it];
-// the conditions have no slot, since stock decides them itself.
+// Stock components in white-key order as [profile slot, name the guide gives it].
 export const STOCK_KEYS = [['pulse', 'pulse'], ['hold', 'hold'], ['multiply', 'multiply'], ['velocity', 'velocity'],
   ['ramp_up', 'ramp up'], ['ramp_down', 'ramp down'], ['random', 'random'], ['portamento', 'portamento'],
-  ['bend', 'bend'], ['tonality', 'tonality'], ['jump', 'jump'], [null, 'skip param'], [null, 'skip comp'],
-  [null, 'skip trig']];
+  ['bend', 'bend'], ['tonality', 'tonality'], ['jump', 'jump'], ['skip_param', 'skip param'],
+  ['skip_component', 'skip comp'], ['skip_trig', 'skip trig']];
 const keyName = slot => STOCK_KEYS.find(([id]) => id === slot)?.[1] ?? slot;
 // Black keys over white-key columns, numbered 1..9 then 0: setting numbers 0..9.
 const BLACK_COLUMNS = [1, 2, 3, 5, 6, 8, 9, 10, 12, 13];

@@ -80,7 +80,7 @@ test('step components: assignment, computed words and edits only for a replaced 
   assert.throws(() => assignSteps(slots.slice(0, 1), null, [['a', 'velocity'], ['b', 'velocity']]), /No free step component/);
   const profile = JSON.parse(profileBytes);
   assert.deepEqual(stepSlots(profile), ['pulse', 'hold', 'multiply', 'velocity', 'ramp_up', 'ramp_down', 'random',
-    'portamento', 'bend', 'tonality', 'jump']);
+    'portamento', 'bend', 'tonality', 'jump', 'skip_param', 'skip_component', 'skip_trig']);
   const methodNames = ['reset_all', 'reset_track', 'condition', 'apply', 'mute', 'enter', 'next', 'trigs'];
   const globals = new Map([...methodNames.map((m, i) => ['s_step_' + m, 0x8d2d1000 + 4 * i]),
     ['s_step_name', 0x8d2d2000], ['s_step_settings', 0x8d2d3000]]);

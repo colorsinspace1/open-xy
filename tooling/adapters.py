@@ -446,8 +446,12 @@ def generate_step_object(directory, m):
                  '    (void)step;\n    return 0;'),
         'APPLY': (STEP_APPLY.replace('@NS@', ns), '    (void)step; (void)note;'),
         'NEXT': (STEP_NEXT.replace('@NS@', ns), '    (void)step; (void)next; (void)counts;\n    return 0;'),
+        'PLAYS': (f'    return {ns}::plays(tracks[track], context(track, step), value) ? 1 : 0;',
+                  '    (void)step;\n    return 1;'),
     }
     values = {key: call if key.lower() in declared else default for key, (call, default) in calls.items()}
+    # Without plays, a condition key never skips anything.
+    values['PLAYS_POINTER'] = f'&{m.prefix}_step_plays' if 'plays' in declared else 'nullptr'
     lines = steps.label_lines(m.definition)
     return expand('step_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=ns,
                                              NAME=m.definition['name'].lower(),

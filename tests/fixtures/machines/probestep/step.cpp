@@ -47,3 +47,8 @@ bool next(Track& track, const opxy::StepContext& at, opxy::u32 setting, opxy::St
     return false;
 }
 }
+
+namespace probestep {
+// On a condition key: play every second visit, counted per track.
+bool plays(Track& track, const opxy::StepContext&, opxy::u32) { return (++track.entered & 1) == 0; }
+}

@@ -3,10 +3,12 @@
 Stock's sequencer calls each step component's object through its method table:
 on reset, when a step is entered, at its trig, for each note and when the
 playhead leaves it (docs/abi-1.2.1.md#step-components). A step machine takes
-over one of the eleven object components, its slot: the profile's `step` edits
-for that slot point every called method at the machine's adapter and the
-picker's name and ten setting labels at the machine's strings. A build whose
-collection leaves a slot unassigned leaves that slot's edits stock.
+over one of the fourteen keys, its slot: the profile's `step` edits for that
+slot point an object component's called methods at the machine's adapter, and
+any key's picker name and ten setting labels at the machine's strings. The
+three condition keys have no object: the `steps` service registers the
+machine's own and routes their decisions to it (step_conditions.cpp). A build
+whose collection leaves a slot unassigned leaves that slot's edits stock.
 
 builder/core.mjs computes the same bytes (stepWords).
 """
@@ -23,7 +25,7 @@ NAME_CHARACTERS = 10     # stock's longest component name, "portamento"
 METHODS = ('reset_all', 'reset_track', 'condition', 'apply', 'mute', 'enter', 'next', 'trigs')
 SYMBOLS = {word: '_step_' + word for word in (*METHODS, 'name', 'settings')}
 # The machine callbacks a definition may declare, beside the methods that call them.
-CALLBACKS = ('reset', 'condition', 'enter', 'trigs', 'mute', 'apply', 'next')
+CALLBACKS = ('reset', 'condition', 'enter', 'trigs', 'mute', 'apply', 'next', 'plays')
 
 
 def service(slot):

@@ -18,10 +18,11 @@ for (const mask of checkedSelections(kit.machines)) {
   const profilingOff = await patchFirmware(kit, linked, stock, {profiling: false});
   assert.notDeepEqual(profilingOff, firmware);
   assert.deepEqual(await recoverFirmware(kit, profilingOff), {stock, selected, numbers: linked.numbers});
-  // A step machine moved to another stock component is recovered where it is.
-  for (const m of kit.machines.filter(m => selected.includes(m.id) && m.kind === 'step')) {
-    const other = stepSlots(kit.profile).find(slot => !Object.values(linked.numbers).some(n => n.step === slot));
-    if (!other) continue;
+  // A step machine moved to another stock component, an object one or a condition
+  // key, is recovered where it is.
+  const free = stepSlots(kit.profile).filter(slot => !Object.values(linked.numbers).some(n => n.step === slot));
+  for (const m of kit.machines.filter(m => selected.includes(m.id) && m.kind === 'step'))
+  for (const other of new Set([free[0], free.at(-1)].filter(Boolean))) {
     const moved = linkKit(kit, selected, {[m.id]: {step: other}});
     const image = await patchFirmware(kit, moved, stock);
     assert.notDeepEqual(image, firmware);

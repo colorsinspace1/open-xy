@@ -93,6 +93,9 @@
   "services": {
     "samples": [
       "sample"
+    ],
+    "steps": [
+      "step"
     ]
   },
   "patches": [
@@ -1648,6 +1651,122 @@
       "words": [
         "settings"
       ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip param: picker name",
+      "address": "0x8400d4d0",
+      "file_offset": "0x1c1c8",
+      "length": 4,
+      "before": "e8d90084",
+      "slot": "skip_param",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip param: setting labels",
+      "address": "0x8400d84c",
+      "file_offset": "0x1c544",
+      "length": 80,
+      "before": "88de008494de0084a0de008494de0084a0de008494de0084b0de008494de0084c0de008494de0084d0de008494de0084e0de008494de0084f0de008494de008400df008494de008410df008494de0084",
+      "slot": "skip_param",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip component: picker name",
+      "address": "0x8400d4d4",
+      "file_offset": "0x1c1cc",
+      "length": 4,
+      "before": "f4d90084",
+      "slot": "skip_component",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip component: setting labels",
+      "address": "0x8400d89c",
+      "file_offset": "0x1c594",
+      "length": 80,
+      "before": "88de0084f4d90084a0de0084f4d90084a0de0084f4d90084b0de0084f4d90084c0de0084f4d90084d0de0084f4d90084e0de0084f4d90084f0de0084f4d9008400df0084f4d9008410df0084f4d90084",
+      "slot": "skip_component",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip trig: picker name",
+      "address": "0x8400d4d8",
+      "file_offset": "0x1c1d0",
+      "length": 4,
+      "before": "00da0084",
+      "slot": "skip_trig",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component skip trig: setting labels",
+      "address": "0x8400d8ec",
+      "file_offset": "0x1c5e4",
+      "length": 80,
+      "before": "88de008420df0084a0de008420df0084a0de008420df0084b0de008420df0084c0de008420df0084d0de008420df0084e0de008420df0084f0de008420df008400df008420df008410df008420df0084",
+      "slot": "skip_trig",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "hook",
+      "name": "Step components: register step machines on condition keys after stock's components",
+      "address": "0x8d583828",
+      "file_offset": "0x1baa84",
+      "length": 4,
+      "before": "ffe3ccfe",
+      "symbol": "sdk_step_register",
+      "call": true,
+      "service": "steps"
+    },
+    {
+      "kind": "hook",
+      "name": "Step components: parameter-lock condition decision",
+      "address": "0x8d583996",
+      "file_offset": "0x1babf2",
+      "length": 4,
+      "before": "ffe301ff",
+      "symbol": "sdk_step_condition",
+      "call": true,
+      "service": "steps"
+    },
+    {
+      "kind": "hook",
+      "name": "Step components: component condition decision",
+      "address": "0x8d5839fa",
+      "file_offset": "0x1bac56",
+      "length": 4,
+      "before": "ffe3cffe",
+      "symbol": "sdk_step_condition",
+      "call": true,
+      "service": "steps"
+    },
+    {
+      "kind": "hook",
+      "name": "Step components: trig condition decision",
+      "address": "0x8d583c26",
+      "file_offset": "0x1bae82",
+      "length": 4,
+      "before": "ffe3b9fd",
+      "symbol": "sdk_step_condition",
+      "call": true,
+      "service": "steps"
     },
     {
       "kind": "startup",
