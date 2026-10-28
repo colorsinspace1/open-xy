@@ -316,7 +316,7 @@ note activity. The GUI never dereferences PCM or contributor voice state.
 Eight fixed request slots publish overviews with sequence checks; sample
 eviction invalidates them before stock frees the object. Note activity uses
 stock's GUI gate getter (`0x8d5b7d10`), also used by the keyboard painter at
-`0x8d526984`. Note-on (`0x8d593b7c`) and note-off/all-off (`0x8d5954b2`,
+`0x8d526984`. Note-on (`0x8d595838`) and note-off/all-off (`0x8d5954b2`,
 `0x8d595514`) update these gates. This counts distinct gated notes, excluding
 release tails; audio-role adapter storage is not a GUI telemetry channel.
 The region-key bridge returns zero for `singleSample`, matching stock's
