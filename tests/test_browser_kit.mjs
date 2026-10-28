@@ -220,7 +220,7 @@ test('saved layouts restore numbers and selections, including older saved select
     {selected:['a'],machines:{a:{engine:34,page:82},gone:{engine:40,page:90}}});
   assert.deepEqual(readLayout(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}).machines,{a:{page:82,engine:34}});
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:'wrong',machines:{}}),/different OS version/);
-  assert.deepEqual(readLayout(k,{format:'opxy-layout/1',profile:k.profile.layout_profiles[0],machines:{}}).machines,{});
+  assert.deepEqual(readLayout(k,{format:'opxy-layout/1',profile:'opxy-1.2.0',machines:{a:{engine:34,page:82}}}).machines,{a:{engine:34,page:82}});
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,selected:['missing'],machines:{}}),/doesn’t have/);
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,machines:{a:{engine:'34',page:82}}}),/Invalid numbers/);
   assert.throws(()=>linkKit(k,['a'],{a:{engine:40,page:90}}),/a has fixed numbers/);
