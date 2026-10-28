@@ -268,19 +268,23 @@ void render_sample(Voice&, const opxy::SampleBlock&);
 the SDK retains until the voice is destroyed; a view with no frames means
 silence. `start` runs on each note. Never retain a block or its buffers.
 
-The stock page an engine asks for (`identity.page`) sets how it plays. On page
-2, the sampler's page, it plays like the stock sampler: one sample, played
-chromatically across the keyboard, its root key playing it as recorded. On
-page 7, the drum page, it plays like the stock drum engine: 24 pads, each with
-its own sample.
+SDK 1.5 adds `resources.singleSample`: 1 selects one sample played chromatically
+across the keyboard, with its root key playing it as recorded; 0 retains
+per-key multisampler assignment. Loading, recording, note playback and region
+selection all use this choice. If omitted, it defaults to 1 on stock sampler
+page 2 for machines declaring SDK 1.5, otherwise 0. Machines declaring SDK
+1.0–1.4 retain their previous per-key behavior on page 2 and cannot declare
+`singleSample`. Page 7 keeps its 24 drum pads and rejects `singleSample: 1`.
 
 ### Services
 
 Each service is an optional entry in `definition.json` `resources`; omitted
-means 0. Callbacks are functions in the machine's namespace.
+means 0 except for `singleSample` as described above. Callbacks are functions
+in the machine's namespace.
 
 | Resource | Value | Effect | Callbacks |
 | --- | --- | --- | --- |
+| `singleSample` | 0 or 1; SDK 1.5 | One sample across the keyboard when 1; incompatible with drum page 7 | |
 | `stereoOutput` | 0 or 1 | Output is 64 interleaved left/right frames | |
 | `chokeSameKey` | 0 or 1 | A note silences earlier voices on the same track and key (page 7: the same pad, at any octave) | |
 | `padSettings` | 0 or 1; page 7 | The SDK saves 16 machine-defined bits with each pad | `sample_defaults`, `sample_assign` |
@@ -468,7 +472,7 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.4 and builds 1.0 to 1.4 machines |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.5 and builds 1.0 to 1.5 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
 | `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |

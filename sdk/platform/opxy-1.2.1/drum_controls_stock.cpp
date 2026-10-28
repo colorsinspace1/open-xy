@@ -63,13 +63,16 @@ u32 sdk_sample_octave_store(u32 track, i32 octave) {
 
 // Stock's key-to-region lookup (through sample_hooks.s): stock's sampler (2)
 // keeps its one sample in region 0 for every key, the multisampler a region
-// per key. An owned page-2 engine plays like the sampler: region 0. An owned
+// per key. An owned single-sample engine plays like the sampler: region 0. An owned
 // drum page maps the note to its canonical pad with the track octave; the
 // GUI-side lookup has a valid project context, so it also publishes the
 // octave for audio. Returns kNotOwned to let stock continue.
 u32 sdk_sample_key(u32 track, u32 key) {
-    if (track < kTracks && sample_page(track_engine(track)) == 2) return 0;
-    if (track >= kTracks || sample_page(track_engine(track)) != 7) return kNotOwned;
+    if (track >= kTracks) return kNotOwned;
+    const SampleMachine* machine = sdk_sample_machine(track_engine(track));
+    if (!machine) return kNotOwned;
+    if (machine->single_sample) return 0;
+    if (machine->page != 7) return kNotOwned;
     const i32 octave = stock<i32(u32)>(0x8d58f65c)(track);
     publish_octave(track, octave);
     return stock<u32(u32, i32)>(0x8d5b8688)(key, octave) + 53;

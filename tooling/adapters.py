@@ -264,7 +264,7 @@ def generate_sample_callbacks(directory, machines):
         declarations.append(f'int {p}_ready() __asm__("{p}_ready");')
         # The engine ID is an absolute symbol the linker supplies; the stock page is the machine's own.
         declarations.append(f'extern const char {p}_engine_id[] __asm__("{p}_engine_id");')
-        fields = [p + '_engine_id', str(m.identity['page']), p + '_ready']
+        fields = [p + '_engine_id', str(m.identity['page']), p + '_ready', str(int(m.single_sample))]
         for flag, entries in SAMPLE_SERVICES:
             declared = bool(resources.get(flag, 0))
             if flag == 'sampleAnalysis':

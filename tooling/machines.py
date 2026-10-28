@@ -28,7 +28,8 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # its tempo (resources.transport) and division captions; 1.3 the machine's own presets,
 # a press that switches a synth's whole page and up to 16 display text slots.
 # 1.4 adds the reusable header and partial second pages sharing unassigned controls.
-SDK_VERSION = (1, 4)
+# 1.5 adds explicit single-sample assignment and defaults page 2 to the sampler.
+SDK_VERSION = (1, 5)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 # A machine's own presets (machine.json `presets`): <name>.json files the builder
@@ -67,6 +68,7 @@ class Machine:
     icon: str = ''
     dry_parameter: int | None = None
     requested: dict = None  # the numbers machine.json asks for, when a layout gave others
+    single_sample: bool = False  # resolved assignment/playback policy, independent of drawing
 
     # The stock name and the symbol prefix are the machine's name.
     @property
@@ -233,6 +235,15 @@ def machine_at(root, identity=None):
                 dict(kind='linear', minimum=0, maximum=1), 'dryParameter must map linearly from 0 to 1')
     # A synth draws its own screen; sample engines and effects use a stock page.
     display = 'drawing' if kind == 'synth' else 'stock'
+    numbers = check_identity(config()['identities'], kind, value['identity'])
+    single_sample = False
+    if kind == 'sample':
+        resources = definition['resources']
+        if 'singleSample' in resources:
+            require_sdk(version, (1, 5), 'singleSample')
+        # Older page-2 machines retain their per-key multisampler behavior.
+        single_sample = bool(resources.get('singleSample', int(version >= (1, 5) and numbers['page'] == 2)))
+        require(not single_sample or numbers['page'] != 7, 'singleSample cannot use drum page 7')
     # The native plan compiles extra translation units only into synths.
     if kind != 'synth':
         require(not sources and not includes, 'Sample engines and effects compile one fx.cpp or sample.cpp')
@@ -252,8 +263,8 @@ def machine_at(root, identity=None):
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
-                   identity=check_identity(config()['identities'], kind, value['identity']), preset_defaults=defaults,
-                   root=root, icon=icon, dry_parameter=dry_parameter, presets=presets)
+                   identity=numbers, preset_defaults=defaults,
+                   root=root, icon=icon, dry_parameter=dry_parameter, presets=presets, single_sample=single_sample)
 
 
 # Machine numbers. Projects store a track's engine, effect and page numbers, so a

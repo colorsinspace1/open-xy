@@ -265,9 +265,12 @@ ID checks. One generated table describes the collection's sample machines
 ([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.1/sample_callbacks.cpp.in));
 [`sample_machines.cpp`](../sdk/platform/opxy-1.2.1/sample_machines.cpp)
 admits an ID only while its registration is still ours, and an owned engine
-borrows a stock payload: the sampler's on page 2, routed as the sampler's one
-sample for every key, and the multisampler's on page 7. Track and voice IDs
-stay unchanged. Stock,
+uses the generated `single_sample` policy for assignment, note payload and
+key-to-region lookup: the sampler's payload and region zero when enabled,
+otherwise the multisampler's payload with nearest-region lookup or canonical
+drum pads. The generator resolves the declared capability and versioned defaults
+([sample API](api.md#sample-engines)); the hooks do not infer single-sample
+playback from a screen number. Track and voice IDs stay unchanged. Stock,
 absent and conflicting registrations follow the original paths. The first
 sample machine in a build enables the `samples` service; further ones add no
 firmware patch sites.

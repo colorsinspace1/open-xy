@@ -59,7 +59,7 @@ extensions_sample_note_region:
 .size extensions_sample_note_region, .-extensions_sample_note_region
 
 /* Entry of stock's key-to-region lookup (R0 = track, R1 = key). sdk_sample_key
- * returns region 0 for an owned page-2 engine, the canonical pad of an owned
+ * returns region 0 for an owned single-sample engine, the canonical pad of an owned
  * drum page, or -1 to continue stock with every register as it arrived. */
 .global extensions_sample_key
 .type extensions_sample_key, STT_FUNC

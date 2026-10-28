@@ -12,6 +12,7 @@ struct SampleMachine {
     const char* engine_id;  // absolute symbol: the engine ID, supplied at link time
     u32 page;               // stock sample page, 2 or 7: what the machine is, never renumbered
     int (*ready)();
+    u32 single_sample;      // resolved policy for assignment, note payload and region lookup
     // padSettings
     PadSettings (*defaults)();
     PadSettings (*assign)(const SampleAssignment*);

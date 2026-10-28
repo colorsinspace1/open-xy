@@ -35,15 +35,15 @@ class SampleServices(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='sample-services-') as folder:
             binary = Path(folder) / (name + ('.exe' if os.name == 'nt' else ''))
             hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
-            if name in ('sample_callbacks', 'benchmark'):
+            if name in ('sample_callbacks', 'benchmark', 'sample_routing'):
                 probe = replace(fixture('probesample'), id='probe', identity=dict(engine=46, page=7))
                 if name == 'sample_callbacks':
                     # A page-2 engine with no services beside it: it plays like the sampler.
                     plain = fixture('probesample')
-                    sampler = replace(plain, id='sampler', identity=dict(engine=47, page=2),
+                    sampler = replace(plain, id='sampler', identity=dict(engine=47, page=2), single_sample=True,
                                       definition=dict(plain.definition, resources=dict(voiceCapacity=256)))
                     generate_sample_callbacks(folder, [probe, sampler])
-                else:
+                elif name == 'benchmark':
                     from tooling.benchmark import generate
                     generate(folder, [replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))])
                 # Exercise the real tempo readers and assignment bridge with
@@ -55,6 +55,9 @@ class SampleServices(unittest.TestCase):
                     stock = stock.replace('reinterpret_cast<' + pointer + '>(address)',
                                           'reinterpret_cast<' + pointer + '>(host_stock_address(address))')
                 (Path(folder) / 'stock.hpp').write_text(stock)
+                if name == 'sample_routing':
+                    source = ROOT / 'sdk/platform/opxy-1.2.1/drum_controls_stock.cpp'
+                    (Path(folder) / source.name).write_text(source.read_text(encoding='utf-8'), encoding='utf-8')
             if name == 'screen_order':
                 generate_screen_order(folder)
             if name == 'startup':
@@ -80,6 +83,9 @@ class SampleServices(unittest.TestCase):
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
         self.run_fixture('sample_callbacks', ('sdk/platform/opxy-1.2.1/sample_machines.cpp',))
+
+    def test_assignment_playback_and_keys_share_policy_and_preserve_unowned_tracks(self):
+        self.run_fixture('sample_routing', ('sdk/platform/opxy-1.2.1/sample_machines.cpp',))
 
     def test_owned_primary_screen_precedes_stock_overlays(self):
         self.run_fixture('screen_order')
