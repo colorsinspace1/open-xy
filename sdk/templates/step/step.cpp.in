@@ -1,0 +1,14 @@
+#include <opxy/step.hpp>
+
+namespace @ID@ {
+namespace {
+// Semitones each setting adds, in setting order (definition.json "settings").
+const opxy::i32 kIntervals[opxy::step_settings] = {-12, -7, -4, -1, 0, 1, 4, 7, 12, 24};
+}
+
+// Learning step component: moves the note by a fixed interval. Change the
+// intervals, or the velocity, and the settings' labels in definition.json.
+void apply(opxy::StepNote& note, opxy::u32 setting) {
+    note.pitch += kIntervals[setting];
+}
+}

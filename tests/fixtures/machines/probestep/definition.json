@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "probestep",
+  "name": "Probe",
+  "settings": [
+    ["octave", "down"], ["down", "1"], ["down", "2"], ["down", "3"], ["probe", "off"],
+    ["up", "1"], ["up", "2"], ["up", "3"], ["octave", "up"], ["quiet", "10%"]
+  ]
+}

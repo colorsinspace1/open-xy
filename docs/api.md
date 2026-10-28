@@ -8,6 +8,7 @@ A machine is a folder under `machines/` named after the machine. Every kind has
 | `synth` | `engine.cpp` with `Voice`/`Shared` state, `display.cpp` and `panel.svg.fragment` | [2op FM](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/fm2op/engine.cpp), [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/engine.cpp) |
 | `sample` | `sample.cpp` with `Voice` state; the stock sample page is its screen | [Timestretch](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/timestretch/sample.cpp) |
 | `effect` | `fx.cpp` with `State`; the stock FX page is its screen | [Ring Mod](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/ringmod/fx.cpp) |
+| `step` | `step.cpp` with `apply`; it replaces a stock [step component](#step-components) | `python sdk.py new --kind step` (Transpose) |
 
 The [first-machine walkthrough](first-machine.md) creates a standalone synth
 and previews it without native integration. SDK adapters own allocation,
@@ -28,6 +29,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Identity | The name follows the [identity rules](#identity) and never changes once published; a firmware's [layout](#identity) gives the numbers |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
+| Step components | Replace one of velocity, random, portamento, bend or tonality; ten settings; no state |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
 
 The [firmware contract](abi-1.2.1.md) explains where each rule comes from.
@@ -472,6 +474,48 @@ Dry zero removes the source dry and Dry one retains it; at zero send, dry stays
 unchanged. Do not add clean audio inside `process` to implement this control.
 Without `dryParameter`, the adapter returns unity to preserve the source dry.
 
+## Step components
+
+A step component changes each note a sequencer step plays. It takes over one of
+stock's step components: holding shift, a step and that component's white key
+adds it to the step, and the black keys choose one of its ten settings
+([TE's guide](https://teenage.engineering/guides/op-xy/step-components)).
+[step.hpp](../sdk/include/opxy/step.hpp) defines the interface. The machine
+supplies `step.cpp` with one callback in its namespace (SDK 1.5):
+
+```cpp
+void apply(opxy::StepNote& note, opxy::u32 setting);   // setting 0..9
+```
+
+`setting` is the black key's position: black keys 1 to 9, then 0. `note.pitch`
+is a MIDI note and `note.velocity` its velocity as it reaches this component;
+change either. After every component has run, stock folds the pitch into
+0..127 by octaves. The adapter clamps the velocity to 0..127; velocity 0 does
+not mute the note. `apply` runs in the sequencer for every note of a step that
+has the component, beside the step's other components: keep it short, with no
+state, allocation or I/O.
+
+`definition.json` holds the component's `name`, at most ten letters, digits or
+spaces, which the picker shows in lower case, and its ten `settings` in black-key
+order, each two lines of at most 14 lower-case letters, digits, spaces or
+`% + . / -`, as the picker shows them:
+
+```json
+{"schema": 1, "id": "transpose", "name": "Transpose",
+ "settings": [["octave", "down"], ["fifth", "down"], ...]}
+```
+
+`machine.json`'s `identity` names the stock component it replaces,
+`{"step": "velocity"}`; a firmware's [layout](#identity) can move it, and the
+[builder](builder.md) lets people place it on any replaceable key. The
+replaceable components are velocity, random, portamento, bend and tonality:
+their behaviour is per note. Pulse, hold, multiply, the ramps, jump and the
+conditions change timing and stay stock. A replaced component keeps its key's
+printed icon; the picker shows the machine's name and setting labels. Its stock
+behaviour is gone, including velocity's mute on "to 0". Projects store each
+step's setting numbers by component, so a project made with another component
+on that key plays the same settings through this one.
+
 ## Registration boundary
 
 A machine's ID (`definition.json`'s `id`) is its stock name: the engine type the device lists, its catalog and
@@ -485,14 +529,16 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.4 and builds 1.0 to 1.4 machines |
-| `kind` | `synth`, `sample` or `effect` |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.5 and builds 1.0 to 1.5 machines |
+| `kind` | `synth`, `sample`, `effect` or `step` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
-| `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
+| `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below. A step component names the stock component it replaces, `{"step": "velocity"}` |
 | `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
 | `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
 | `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
 | `presets` | Optional folder inside the machine folder holding the machine's own [presets](#presets); `sdk` 1.3, instruments only |
+
+Step components have no `sources`, `includes`, `presets`, `presetDefaults` or numbers.
 
 An effect's optional `dryParameter` field names the control used by the stock
 source dry mixer, as described under [effects](#effects).
@@ -523,6 +569,7 @@ firmware that holds it.
 | `synth` | 34..62 | Its own screen: 82..127 |
 | `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
 | `effect` | 1, 8, 11, 21, 23..28 or 34..62 | Stock FX page 21 |
+| `step` | None: it names a replaceable stock component | None |
 
 Engine IDs above 32, effect IDs above 18 and pages above 81 exist only in the
 relocated stock tables.
@@ -545,6 +592,12 @@ ones. New numbers come from engines 34..62 and pages 82..127, never from the
 gaps in stock's own engine table, so ask for numbers in those ranges; a
 sample engine keeps its stock page. Macro Osc predates this and keeps
 engine 26.
+
+The layout also records the stock component each step component replaces,
+`{"step": "velocity"}`. A step component gets the layout's component while it
+is still replaceable and free, otherwise the one it asks for, otherwise the
+first free one. Unlike numbers, a dropped step component holds nothing: its
+entry stays only as a hint for when it is chosen again.
 A [project companion](projects.md) records what a project's numbers meant by
 machine ID, for firmware with another layout.
 

@@ -1155,6 +1155,190 @@
       "call": true
     },
     {
+      "kind": "step",
+      "name": "Step component velocity: per-note and no-op methods",
+      "address": "0x840a0340",
+      "file_offset": "0x52f94",
+      "length": 8,
+      "before": "f234588de22b588d",
+      "slot": "velocity",
+      "words": [
+        "apply",
+        "0x8d582db0"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component velocity: picker name",
+      "address": "0x8400d4b0",
+      "file_offset": "0x1c1a8",
+      "length": 4,
+      "before": "a0d90084",
+      "slot": "velocity",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component velocity: setting labels",
+      "address": "0x8400d5cc",
+      "file_offset": "0x1c2c4",
+      "length": 80,
+      "before": "a0db0084b0db0084a0db0084bcdb0084a0db0084c4db0084a0db0084ccdb0084a0db0084d4db0084a0db0084dcdb0084a0db0084e4db0084a0db0084ecdb0084a0db0084f4db0084a0db0084fcdb0084",
+      "slot": "velocity",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component random: per-note and no-op methods",
+      "address": "0x840a0200",
+      "file_offset": "0x52e54",
+      "length": 4,
+      "before": "1631588d",
+      "slot": "random",
+      "words": [
+        "apply"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component random: picker name",
+      "address": "0x8400d4bc",
+      "file_offset": "0x1c1b4",
+      "length": 4,
+      "before": "b8d90084",
+      "slot": "random",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component random: setting labels",
+      "address": "0x8400d6bc",
+      "file_offset": "0x1c3b4",
+      "length": 80,
+      "before": "6cdc008414dc008474dc008430dc00847cdc008430dc008484dc008430dc00848cdc008430dc00846cdc008430dc008474dc008414dc00847cdc008414dc008484dc008414dc00848cdc008414dc0084",
+      "slot": "random",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component portamento: per-note and no-op methods",
+      "address": "0x840a030c",
+      "file_offset": "0x52f60",
+      "length": 4,
+      "before": "0634588d",
+      "slot": "portamento",
+      "words": [
+        "apply"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component portamento: picker name",
+      "address": "0x8400d4c0",
+      "file_offset": "0x1c1b8",
+      "length": 4,
+      "before": "c0d90084",
+      "slot": "portamento",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component portamento: setting labels",
+      "address": "0x8400d70c",
+      "file_offset": "0x1c404",
+      "length": 80,
+      "before": "c0d9008494dc0084c0d90084a4dc0084c0d90084b0dc0084c0d90084bcdc0084c0d90084c8dc0084c0d90084d4dc0084c0d90084e0dc0084c0d90084ecdc0084c0d90084f8dc0084c0d9008404dd0084",
+      "slot": "portamento",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component bend: per-note and no-op methods",
+      "address": "0x840a02a4",
+      "file_offset": "0x52ef8",
+      "length": 16,
+      "before": "bc2d588db02d588da42d588d2832588d",
+      "slot": "bend",
+      "words": [
+        "apply",
+        "0x8d582db0",
+        "0x8d582da4",
+        "0x8d582d98"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component bend: picker name",
+      "address": "0x8400d4c4",
+      "file_offset": "0x1c1bc",
+      "length": 4,
+      "before": "ccd90084",
+      "slot": "bend",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component bend: setting labels",
+      "address": "0x8400d75c",
+      "file_offset": "0x1c454",
+      "length": 80,
+      "before": "08dd008414dd008408dd008420dd008408dd008428dd008408dd008430dd008408dd00843cdd008408dd008444dd008408dd008450dd008408dd00845cdd008408dd008468dd008408dd008470dd0084",
+      "slot": "bend",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component tonality: per-note and no-op methods",
+      "address": "0x840a02d8",
+      "file_offset": "0x52f2c",
+      "length": 4,
+      "before": "4632588d",
+      "slot": "tonality",
+      "words": [
+        "apply"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component tonality: picker name",
+      "address": "0x8400d4c8",
+      "file_offset": "0x1c1c0",
+      "length": 4,
+      "before": "d4d90084",
+      "slot": "tonality",
+      "words": [
+        "name"
+      ]
+    },
+    {
+      "kind": "step",
+      "name": "Step component tonality: setting labels",
+      "address": "0x8400d7ac",
+      "file_offset": "0x1c4a4",
+      "length": 80,
+      "before": "7cdd008488dd008490dd0084a0dd0084acdd0084b8dd0084c0dd0084acd90084c8dd0084acd90084d0dd0084acd90084d8dd0084acd90084d8dd0084b0d900847cdd0084e4dd00847cdd0084e8dd0084",
+      "slot": "tonality",
+      "words": [
+        "settings"
+      ]
+    },
+    {
       "kind": "startup",
       "name": "Boot-screen version label",
       "address": "0x8c0b85dc",

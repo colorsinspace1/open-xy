@@ -38,10 +38,13 @@ version is rejected. The output differs from stock in exactly these places:
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
+| Step components | 3 per replaced component | Points a stock step component's per-note method at a step machine's adapter, resets its other behaviour to stock's no-op methods, and points its picker name and ten setting labels at the machine's strings |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
-The sample rows (sample dispatch, analysis, drum-page services and recorder)
+The step component rows apply only to the components a build's step machines
+replace (see [step components](#step-components)); every other component stays
+stock. The sample rows (sample dispatch, analysis, drum-page services and recorder)
 form the profile's `samples` service: a build applies those edits, and links
 the SDK code behind them, only when it includes a sample engine. Otherwise
 their sites stay stock. Everything else must reconstruct byte for byte. Protected ranges in
@@ -509,3 +512,51 @@ supplies only wet audio. The generated adapter exposes the machine's declared
 `dryParameter`, or returns `INT32_MAX` when none is declared, matching stock's
 absent-object fallback. This is a source-mixer control, not a wet/dry crossfade
 inside the effect. See the [effect API](api.md#effects).
+
+## Step components
+
+Stock's sequencer keeps each step's components in a 16-byte record in its
+pattern: a 16-bit mask of the components on, then one byte per component whose
+low four bits are its setting, 0..9 (black keys 1..9, then 0). Pattern data is
+`0x800` bytes for 128 steps, saved in projects as is. There are 14 components,
+the white keys in order: pulse, hold, multiply, velocity, ramp up, ramp down,
+random, portamento, bend, tonality, jump and three conditions. Every byte of
+the record is used, so step machines replace components rather than add them.
+
+Each of the first eleven components is a static object `{method table, -1,
+component number}` (built at `0x8d5836a0`); the conditions are handled by
+number. The sequencer calls every enabled component's object through its
+11-entry method table:
+
+| Entry | Use |
+| --- | --- |
+| `+0x00` | The component's short name |
+| `+0x10` | Per note: `(object, -, -, settings, -, note, -)`, where `settings` is the step's component bytes and `note` stock's note record, MIDI note at `+0x0d` and velocity at `+0x0f` |
+| `+0x14` | Mute query: nonzero skips the note. Velocity's returns true for "to 0" |
+| `+0x1c` | Per-step hook; bend's applies its pitch curve |
+| Others | Resets and timing, which pulse, hold, multiply and the ramps use |
+
+After every per-note method, stock folds the pitch into 0..127 by octaves
+(`0x8d583ada`). The picker reads a component's name from the pointer table at
+`0x8400d4a4` and its ten setting labels, two lines each, from `0x8400d4dc +
+80 * component`.
+
+Velocity (3), random (6), portamento (7), bend (8) and tonality (9) act per
+note, so they are replaceable; the profile names each one's edits with its
+`slot`. For a replaced component a build writes three `step` edits:
+
+1. Its per-note method, pointing at the machine's adapter
+   ([`step_object.cpp.in`](../sdk/platform/opxy-1.2.1/step_object.cpp.in)),
+   and the method-table entries that carry its own behaviour (velocity's mute
+   query, bend's curve) reset to stock's no-op methods.
+2. Its picker name pointer, pointing at the machine's name.
+3. Its 20 setting-label pointers, pointing at the machine's labels.
+
+The build computes these words from the machine's symbols
+([`tooling/steps.py`](../tooling/steps.py), and `stepWords` in the builder) and
+checks that each points into the module and each literal is the reviewed stock
+no-op. The adapter reads the component number from the object, so one compiled
+machine serves any component, and a layout moves it without recompiling.
+Recovering a build reads which adapter each replaced component points at, then
+accepts the guess only by rebuilding the image exactly.
+

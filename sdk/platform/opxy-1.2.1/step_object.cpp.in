@@ -1,0 +1,34 @@
+// SDK native ABI for a step component (docs/abi-1.2.1.md#step-components).
+// Only the SDK knows stock's step component objects and note record; the
+// machine provides apply (opxy/step.hpp). A build points the replaced stock
+// component's per-note method here and its picker name and setting labels at
+// these strings (tooling/steps.py), so they keep these symbols.
+#include "step.cpp"
+extern "C" {
+void @PREFIX@_step_apply(const void* self, opxy::u32, opxy::u32, const opxy::u8* settings, opxy::u32,
+                         opxy::u8* note, opxy::u32) __asm__("@PREFIX@_step_apply");
+extern const char @PREFIX@_step_name[16] __asm__("@PREFIX@_step_name");
+extern const char @PREFIX@_step_settings[20][16] __asm__("@PREFIX@_step_settings");
+}
+namespace {
+// Stock's note record: the MIDI note at +0x0d and the velocity at +0x0f.
+const unsigned kPitch = 0x0d, kVelocity = 0x0f;
+}
+// Stock calls each enabled component's object as (object, ..., settings, ...,
+// note, ...). The object's third word is the component's number, which indexes
+// the step's settings; a setting's low four bits are its stock number 0..9.
+void @PREFIX@_step_apply(const void* self, opxy::u32, opxy::u32, const opxy::u8* settings, opxy::u32,
+                         opxy::u8* note, opxy::u32) {
+    const opxy::u32 component = static_cast<const opxy::u32*>(self)[2];
+    const opxy::u32 setting = settings[component] & 15;
+    if (setting >= opxy::step_settings) return;
+    opxy::StepNote view = {note[kPitch], note[kVelocity]};
+    @NAMESPACE@::apply(view, setting);
+    opxy::i32 pitch = view.pitch;
+    while (pitch < 0) pitch += 12;
+    while (pitch > 255) pitch -= 12;  // stock folds 128..255 down itself
+    note[kPitch] = static_cast<opxy::u8>(pitch);
+    note[kVelocity] = static_cast<opxy::u8>(view.velocity < 0 ? 0 : view.velocity > 127 ? 127 : view.velocity);
+}
+const char @PREFIX@_step_name[16] = "@NAME@";
+const char @PREFIX@_step_settings[20][16] = {@LABELS@};

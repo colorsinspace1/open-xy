@@ -6,7 +6,8 @@ object layouts, method tables, storage, registration and menu entries:
 - synth: initialize/start/destroy/render over Voice and Shared state, with a
   drawing display;
 - sample: flag-1 synth registration that receives the track's sample;
-- effect: send-FX registry object with in-place stereo processing.
+- effect: send-FX registry object with in-place stereo processing;
+- step: a replaced stock step component's per-note method and picker strings.
 """
 import json
 import math
@@ -16,6 +17,7 @@ from .benchmark import append_callback
 from .definitions import ROOT, control_positions, paged, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
+from . import steps
 
 TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.1'
 
@@ -303,7 +305,7 @@ def generate_synth_controls(directory, machines):
     """Synth ownership, alternate selection and continuous fine controls."""
     declarations, rows, formatters, lfo_rows = [], [], [], []
     for m in machines:
-        if m.kind != 'effect':
+        if m.kind in ('synth', 'sample'):
             declarations.append(f'int {m.prefix}_record_ready() __asm__("{m.prefix}_record_ready");')
             declarations.append(f'extern const char {m.prefix}_engine_id[] __asm__("{m.prefix}_engine_id");')
             controls = ', '.join(str(position % 4) for position in control_positions(m.definition))
@@ -362,7 +364,8 @@ def generate_project_companion_table(directory, machines):
     """Each machine's ID and its number symbols, sorted by ID as a companion lists them
     (docs/projects.md). Numbers are link-time symbols; a kit's unselected machines are 0."""
     declarations, rows = [], []
-    for m in sorted(machines, key=lambda m: m.id):
+    # Step components have no numbers: projects store each step's settings by stock component.
+    for m in sorted((m for m in machines if m.kind != 'step'), key=lambda m: m.id):
         number, page = (m.prefix + '_fx_id', m.prefix + '_fx_page_id') if m.kind == 'effect' else \
             (m.prefix + '_engine_id', m.prefix + '_page_id')
         declarations += [f'extern const char {name}[] __asm__("{name}");' for name in (number, page)]
@@ -424,3 +427,12 @@ def catalog_entry(m):
     return (',\n        {\n            "type": ' + json.dumps(m.native_name) +
             ',\n            "default_params": ' + json.dumps(catalog_defaults(m.definition)) + '\n        }\n')
 
+
+
+def generate_step_object(directory, m):
+    """A step component's adapter: its per-note method and the strings the picker shows."""
+    lines = steps.label_lines(m.definition)
+    return expand('step_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
+                                             NAME=m.definition['name'].lower(),
+                                             LABELS=', '.join(json.dumps(line) for line in lines)),
+                  Path(directory) / f'step_object_{m.prefix}.cpp')
