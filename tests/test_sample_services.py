@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from dataclasses import replace
 from tooling.adapters import generate_sample_callbacks, generate_screen_order
-from tooling.machines import machine
 from tooling.startup import generate as generate_startup
+from machine_fixtures import fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,13 +35,17 @@ class SampleServices(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='sample-services-') as folder:
             binary = Path(folder) / (name + ('.exe' if os.name == 'nt' else ''))
             hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
-            if name == 'sample_callbacks':
-                probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
-                generate_sample_callbacks(folder, [probe])
+            if name in ('sample_callbacks', 'benchmark'):
+                probe = replace(fixture('probesample'), id='probe', identity=dict(engine=46, page=7))
+                if name == 'sample_callbacks':
+                    generate_sample_callbacks(folder, [probe])
+                else:
+                    from tooling.benchmark import generate
+                    generate(folder, [replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))])
                 # Exercise the real tempo readers and assignment bridge with
                 # host addresses standing in for stock functions and globals.
-            if name in ('sample_callbacks', 'sample_routing', 'sample_display_stock'):
-                stock = (ROOT / 'sdk/platform/opxy-1.2.0/stock.hpp').read_text()
+            if name in ('sample_callbacks', 'benchmark', 'sample_routing', 'sample_display_stock'):
+                stock = (ROOT / 'sdk/platform/opxy-1.2.1/stock.hpp').read_text()
                 stock = stock.replace('typedef __UINTPTR_TYPE__ Address;',
                                       'typedef __UINTPTR_TYPE__ Address;\nAddress host_stock_address(Address);')
                 for pointer in ('T*', 'const volatile u32*', 'const volatile unsigned char*'):
@@ -51,10 +55,10 @@ class SampleServices(unittest.TestCase):
             if name == 'sample_routing':
                 # The production bridge, with only stock address resolution replaced.
                 for unit in ('sample_controls_stock.cpp', 'sample_machines.cpp'):
-                    (Path(folder) / unit).write_text((ROOT / 'sdk/platform/opxy-1.2.0' / unit).read_text())
+                    (Path(folder) / unit).write_text((ROOT / 'sdk/platform/opxy-1.2.1' / unit).read_text())
             if name == 'sample_display_stock':
                 unit = 'sample_display_stock.cpp'
-                (Path(folder) / unit).write_text((ROOT / 'sdk/platform/opxy-1.2.0' / unit).read_text())
+                (Path(folder) / unit).write_text((ROOT / 'sdk/platform/opxy-1.2.1' / unit).read_text())
             if name == 'screen_order':
                 generate_screen_order(folder)
             if name == 'startup':
@@ -62,7 +66,7 @@ class SampleServices(unittest.TestCase):
             # A fixture that includes barrier.hpp supplies host_barrier for the Blackfin SSYNC.
             command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-D__builtin_bfin_ssync()=host_barrier()',
                        '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
-                       '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'), str(ROOT / 'tests/fixtures' / (name + '.cpp')),
+                       '-I' + str(ROOT / 'sdk/platform/opxy-1.2.1'), str(ROOT / 'tests/fixtures' / (name + '.cpp')),
                        *(str(ROOT / path) for path in extra), '-o', str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=120, **hidden)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -85,7 +89,7 @@ class SampleServices(unittest.TestCase):
         self.run_fixture("stock_sample")
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
-        self.run_fixture('sample_callbacks', ('sdk/platform/opxy-1.2.0/sample_machines.cpp',))
+        self.run_fixture('sample_callbacks', ('sdk/platform/opxy-1.2.1/sample_machines.cpp',))
 
     def test_sample_page_and_assignment_routes_preserve_unowned_stock_paths(self):
         self.run_fixture('sample_routing')
@@ -98,3 +102,6 @@ class SampleServices(unittest.TestCase):
 
     def test_startup_registers_in_order_and_gates_the_catalog(self):
         self.run_fixture('startup')
+
+    def test_benchmark_forwards_stock_and_only_owned_arbitrary_synths(self):
+        self.run_fixture('benchmark')

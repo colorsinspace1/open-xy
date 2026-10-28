@@ -14,20 +14,30 @@ import os
 from pathlib import Path
 import re
 
-from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, stock_name, own_screen, validate_definition
+from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, SDK_1_2_TEXTS, own_screen, paged, stock_name, validate_definition
 from .formats import require
 from .pipeline import config
 
 KINDS = ('synth', 'sample', 'effect')
 FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults',
-          'dryParameter'}
+          'presets', 'dryParameter'}
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
-SDK_VERSION = (1, 1)
+# 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes),
+# its tempo (resources.transport) and division captions; 1.3 the machine's own presets,
+# a press that switches a synth's whole page and up to 16 display text slots.
+# 1.4 adds the reusable header and partial second pages sharing unassigned controls.
+# 1.5 adds a sample engine's own drawing page and single-sample assignment.
+SDK_VERSION = (1, 5)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
-COLLECTION = ROOT / 'profiles/collection.json'
+# A machine's own presets (machine.json `presets`): <name>.json files the builder
+# installs beside its init preset; default.json replaces the generated one.
+# builder/core.mjs checks them again.
+PRESET_NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,23}')
+PRESET_COUNT = 16
+PRESET_BYTES = 16 * 1024
 # Folders inside a machine that are never its source: version control, caches, tools.
 IGNORED = {'.git', '__pycache__', 'node_modules', '.venv'}
 
@@ -54,6 +64,7 @@ class Machine:
     identity: dict
     preset_defaults: dict
     root: Path = None
+    presets: dict = None  # name -> preset document, from machine.json `presets`
     icon: str = ''
     dry_parameter: int | None = None
     requested: dict = None  # the numbers machine.json asks for, when a layout gave others
@@ -67,21 +78,14 @@ class Machine:
     def prefix(self):
         return self.id
 
-    @property
-    def bundled(self):
-        """A machine of this repository's machines/ folder, rather than a folder elsewhere."""
-        return self.root == ROOT / 'machines' / self.id
-
     def source(self, relative=''):
-        """A machine file as the build names it: machines/<id>/... for a bundled machine, so
-        rebuilds stay byte-identical, and an absolute path for a machine elsewhere."""
-        base = 'machines/' + self.id if self.bundled else self.root.as_posix()
-        return base + ('/' + relative if relative else '')
+        """A machine file as the build names it: its absolute path."""
+        return self.root.as_posix() + ('/' + relative if relative else '')
 
     def files(self):
         """Every authored file, keyed as the build's provenance names it."""
-        key = 'machines/' + self.id if self.bundled else 'external/' + self.id
-        return {key + '/' + p.relative_to(self.root).as_posix(): p for p in tree(self.root) if p.suffix != '.md'}
+        return {'external/' + self.id + '/' + p.relative_to(self.root).as_posix(): p
+                for p in tree(self.root) if p.suffix != '.md'}
 
     def contains(self, path):
         """Whether a path lies inside this machine's folder, where build output must never go."""
@@ -99,6 +103,43 @@ def _relative(machine_root, value):
     path = (machine_root / value).resolve()
     require(path.is_relative_to(machine_root.resolve()) and path.exists(), 'Missing machine path: ' + value)
     return value
+
+
+def check_preset(value, identity):
+    """A preset as the device saves it (version 4), for this machine and pointing at no samples."""
+    engine = value.get('engine') if isinstance(value, dict) else None
+    params = engine.get('params') if isinstance(engine, dict) else None
+    require(isinstance(value, dict) and value.get('version') == 4 and value.get('platform') == 'OP-XY' and
+            value.get('type') == identity and value.get('regions') == [] and isinstance(params, list) and
+            len(params) == 8 and all(type(n) is int and 0 <= n <= 32767 for n in params),
+            f'A preset is a version 4 OP-XY preset of {identity}, with eight engine params and no sample regions')
+    return value
+
+
+def reject_constant(name):
+    raise ValueError(f'{name} is not JSON')
+
+
+def read_presets(root, folder, identity):
+    """Each <name>.json in the machine's presets folder, by name."""
+    path = root / _relative(root, folder)
+    require(path.is_dir(), 'presets names a folder: ' + folder)
+    # Notes and hidden files, such as a Finder .DS_Store, are not presets.
+    files = sorted(p for p in path.iterdir() if p.suffix != '.md' and not p.name.startswith('.'))
+    require(0 < len(files) <= PRESET_COUNT, f'A presets folder holds 1 to {PRESET_COUNT} presets')
+    presets = {}
+    for file in files:
+        require(file.is_file() and file.suffix == '.json' and PRESET_NAME.fullmatch(file.stem),
+                f'Invalid preset file {file.name}: <name>.json, the name lowercase letters, digits, - and _, '
+                'at most 24')
+        data = file.read_bytes()
+        require(len(data) <= PRESET_BYTES, f'{file.name}: a preset is at most {PRESET_BYTES} bytes')
+        try:
+            value = json.loads(data.decode('utf-8'), parse_constant=reject_constant)
+        except ValueError as error:
+            raise ValueError(f'{file.name}: invalid JSON: {error}') from error
+        presets[file.stem] = check_preset(value, identity)
+    return presets
 
 
 def check_identity(rules, kind, value, screen=False):
@@ -138,13 +179,12 @@ def sdk_version(text):
     current = '%d.%d' % SDK_VERSION
     require(major == SDK_VERSION[0] and minor <= SDK_VERSION[1],
             f'The machine targets SDK {text}; this SDK is {current} and builds {SDK_VERSION[0]}.0 to {current}')
-    return text
+    return major, minor
 
 
-def machine(identity):
-    """A bundled machine, machines/<identity>/."""
-    stock_name(identity)
-    return machine_at(ROOT / 'machines' / identity, identity)
+def require_sdk(version, minimum, feature):
+    """A feature newer than the SDK version the machine declares is refused, not misread."""
+    require(version >= minimum, f'{feature} needs "sdk": "%d.%d" in machine.json' % minimum)
 
 
 def machine_at(root, identity=None):
@@ -161,7 +201,7 @@ def machine_at(root, identity=None):
     require(isinstance(value, dict) and value.get('schema') == 1 and
             set(value) <= FIELDS,
             'Unexpected machine.json fields: ' + identity)
-    sdk_version(value.get('sdk'))
+    version = sdk_version(value.get('sdk'))
     kind = value.get('kind')
     require(kind in KINDS, 'Unknown machine kind: ' + str(kind))
     require(isinstance(value.get('description'), str) and 0 < len(value['description']) <= 160,
@@ -172,9 +212,19 @@ def machine_at(root, identity=None):
     icon = value.get('icon', '')
     require(icon == '' or isinstance(icon, str) and ICON.fullmatch(icon), 'icon is SVG path data')
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
+    if 'bufferBytes' in definition['resources']:
+        require_sdk(version, (1, 2), 'An effect buffer (bufferBytes)')
+    if definition['resources'].get('transport'):
+        require_sdk(version, (1, 2), "An effect's tempo (transport)")
+    if any(p['display'] == 'division' for p in definition['parameters']):
+        require_sdk(version, (1, 2), 'A division control')
+    if paged(definition):
+        require_sdk(version, (1, 3), 'A press that switches the page ("press": "page")')
+        if len(definition['parameters']) < 8:
+            require_sdk(version, (1, 4), 'A partially filled second page')
+    if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
+        require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
-    require(root == ROOT / 'machines' / identity or not (ROOT / 'machines' / identity).exists(),
-            f'A machine named {identity} is bundled with the SDK; choose another ID')
     dry_parameter = None
     if 'dryParameter' in value:
         require(kind == 'effect' and isinstance(value['dryParameter'], str),
@@ -189,8 +239,7 @@ def machine_at(root, identity=None):
     display = 'drawing' if screen else 'stock'
     numbers = check_identity(config()['identities'], kind, value.get('identity'), screen)
     if kind == 'sample' and (screen or 'singleSample' in definition['resources']):
-        require(tuple(map(int, value['sdk'].split('.'))) >= (1, 1),
-                'Sample displays and singleSample require sdk 1.1 or newer')
+        require_sdk(version, (1, 5), "A sample engine's own page (resources.display) or singleSample")
         require(not definition['resources'].get('singleSample', 0) or numbers['page'] != 7,
                 'singleSample uses stock page 2 or a drawing display, not drum page 7')
     # The native plan compiles extra translation units only into synths.
@@ -204,26 +253,29 @@ def machine_at(root, identity=None):
     amp = defaults.get('amp', {})
     require(isinstance(amp, dict) and set(amp) <= {'attack', 'decay', 'release', 'sustain'} and
             all(type(v) is int and 0 <= v <= 32767 for v in amp.values()), 'Invalid preset amp defaults')
+    presets = None
+    if 'presets' in value:
+        require_sdk(version, (1, 3), "A machine's own presets")
+        require(kind != 'effect' and isinstance(value['presets'], str), 'presets names a folder; effects have none')
+        presets = read_presets(root, value['presets'], identity)
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
                    identity=numbers, preset_defaults=defaults,
-                   root=root, icon=icon, dry_parameter=dry_parameter)
-
-
-def discovered():
-    """Every machine folder in the repository, in name order."""
-    return [machine(path.parent.name) for path in sorted((ROOT / 'machines').glob('*/machine.json'))]
+                   root=root, icon=icon, dry_parameter=dry_parameter, presets=presets)
 
 
 # Machine numbers. Projects store a track's engine, effect and page numbers, so a
-# machine keeps its numbers in a firmware for good. Bundled machines' numbers are
-# fixed. Every other machine is given numbers by a layout: the firmware's record of
+# machine keeps its numbers in a firmware for good. The first Open-XY firmware gave
+# its own machines fixed numbers, held in every firmware whether or not it holds the
+# machine (FIXED_NUMBERS). Every other machine is given numbers by a layout: the firmware's record of
 # every number it has given out, including to machines since dropped, which stay
 # held so an old project never opens another machine. A machine new to a layout
 # gets the numbers it asks for when they are free, else the lowest free ones.
 # builder/core.mjs assignNumbers applies the same rules (tests/fixtures/numbers.json).
 LAYOUT_FORMAT = 'opxy-layout/1'
+FIXED_NUMBERS = {'fm2op': {'engine': 34, 'page': 82}, 'macroosc': {'engine': 26, 'page': 83},
+                 'ringmod': {'effect': 1, 'page': 21}, 'timestretch': {'engine': 35, 'page': 7}}
 
 
 def number_pools(rules):
@@ -236,8 +288,11 @@ def number_pools(rules):
 
 def occupied(rules, identity):
     """What an identity holds: its engine or effect number, and its own page. Effects share
-    the FX page and sample engines a stock sample page."""
+    the FX page and sample engines a stock sample page. Stock reads a send track's effect
+    number as its engine, so an effect also holds that engine number: no engine shares it."""
     keys = [(slot, identity[slot]) for slot in ('engine', 'effect') if slot in identity]
+    if 'effect' in identity:
+        keys.append(('engine', identity['effect']))
     if 'effect' not in identity and identity['page'] not in rules['sample_pages']:
         keys.append(('page', identity['page']))
     return keys
@@ -249,12 +304,19 @@ def read_layout(path):
     profile = config()
     require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
             f'{path} is not a machine layout ({LAYOUT_FORMAT})')
-    require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
-    for name, identity in value['machines'].items():
+    # Earlier profiles with the same identity rules number machines the same way.
+    require(value.get('profile') in (profile['id'], *profile.get('layout_profiles', ())),
+            f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
+    return check_layout_numbers(value['machines'], 'the layout')
+
+
+def check_layout_numbers(machines, where):
+    """Layout numbers by machine ID: an engine and page, or an effect and page, each."""
+    for name, identity in machines.items():
         stock_name(name)
         require(isinstance(identity, dict) and set(identity) in ({'engine', 'page'}, {'effect', 'page'}) and
-                all(type(n) is int for n in identity.values()), f'{name}: invalid numbers in the layout')
-    return value['machines']
+                all(type(n) is int for n in identity.values()), f'{name}: invalid numbers in {where}')
+    return machines
 
 
 def layout_document(numbers):
@@ -278,7 +340,11 @@ def number_layout(rules, fixed, layout, machines):
         hold(name, identity)
     for name, identity in (layout or {}).items():
         if name in numbers:
-            require(numbers[name] == identity, f'{name} is bundled with fixed numbers; the layout gives it others')
+            require(numbers[name] == identity, f'{name} has fixed numbers; the layout gives it others')
+        elif 'effect' in identity and identity['effect'] not in pools['effect']:
+            # An effect number later found unusable on stock (its controls never
+            # moved) is let go: the machine is numbered again like a new one.
+            continue
         else:
             hold(name, identity)
     for entry in machines:
@@ -292,17 +358,21 @@ def number_layout(rules, fixed, layout, machines):
         identity = dict(requested)
         for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' or screen else ('engine',):
             choices = ([requested[slot]] if requested[slot] in pools[slot] else []) + pools[slot]
-            identity[slot] = next((n for n in choices if (slot, n) not in holders), None)
+            # An effect number is also held as an engine number (occupied).
+            keys = lambda n: [(slot, n)] + ([('engine', n)] if slot == 'effect' else [])
+            identity[slot] = next((n for n in choices if not any(k in holders for k in keys(n))), None)
             require(identity[slot] is not None, f'No free {slot} number for {name}: every one is held in this layout')
         hold(name, check_identity(rules, kind, identity, screen))
     return numbers
 
 
 def assign_numbers(machines, layout=None, fixed=None):
-    """The machines with their numbers in this layout, and the layout after. `fixed` are
-    the bundled machines, by default this repository's."""
-    numbers = number_layout(config()['identities'],
-                            [(m.id, m.kind, m.identity) for m in (discovered() if fixed is None else fixed)],
+    """The machines with their numbers in this layout, and the layout after. `fixed` maps
+    IDs to fixed numbers, by default FIXED_NUMBERS; a machine with fixed numbers asks for them."""
+    fixed = FIXED_NUMBERS if fixed is None else fixed
+    for m in machines:
+        require(fixed.get(m.id, m.identity) == m.identity, f'{m.id} has fixed numbers; its machine.json asks for others')
+    numbers = number_layout(config()['identities'], [(name, None, identity) for name, identity in fixed.items()],
                             layout, [(m.id, m.kind, m.identity, m.display != 'stock') for m in machines])
     assigned = [m if numbers[m.id] == m.identity else replace(m, identity=numbers[m.id], requested=m.identity)
                 for m in machines]
@@ -310,48 +380,48 @@ def assign_numbers(machines, layout=None, fixed=None):
 
 
 def free_synth_identity():
-    """Numbers to ask for in a new synth's machine.json: the lowest that no bundled machine holds."""
+    """Numbers to ask for in a new synth's machine.json: the lowest that no fixed numbers hold."""
     rules = config()['identities']
-    held = {key for m in discovered() for key in occupied(rules, m.identity)}
+    held = {key for identity in FIXED_NUMBERS.values() for key in occupied(rules, identity)}
     pools = number_pools(rules)
     return {slot: next(n for n in pools[slot] if (slot, n) not in held) for slot in ('engine', 'page')}
 
 
-def read_collection(path=COLLECTION, extra=()):
-    """A collection file's entries, resolved: a bundled machine's ID, or the absolute
-    folder of a machine elsewhere ({"path": ...}, relative to the file). Folders
-    in `extra` follow them."""
+def read_collection(path=None, extra=()):
+    """A collection file's entries, resolved: each machine's absolute folder
+    ({"path": ...}, relative to the file). Folders in `extra` follow them."""
+    if path is None:
+        return [{'path': str(Path(folder).resolve())} for folder in extra]
     path = Path(path)
     value = json.loads(path.read_text(encoding='utf-8'))
     require(isinstance(value, dict) and set(value) == {'schema', 'machines'} and value['schema'] == 1 and
             isinstance(value['machines'], list), 'Unsupported collection file: ' + str(path))
     entries = []
     for entry in value['machines']:
-        if isinstance(entry, dict):
-            require(set(entry) == {'path'} and isinstance(entry['path'], str),
-                    'Collection entries are IDs or {"path": ...}')
-            entries.append({'path': str((path.parent / entry['path']).resolve())})
-        else:
-            entries.append(entry)
+        require(isinstance(entry, dict) and set(entry) == {'path'} and isinstance(entry['path'], str),
+                'Collection entries are {"path": ...}: the SDK holds no machines of its own')
+        entries.append({'path': str((path.parent / entry['path']).resolve())})
     return entries + [{'path': str(Path(folder).resolve())} for folder in extra]
 
 
 def free_effect_identity():
-    """Numbers to ask for in a new effect's machine.json: the lowest effect number no bundled machine holds."""
+    """Numbers to ask for in a new effect's machine.json: the lowest effect number not fixed."""
     rules = config()['identities']
-    used = {m.identity.get('effect') for m in discovered()}
+    used = {identity.get('effect') for identity in FIXED_NUMBERS.values()}
     free = [n for n in rules['effects'] if n not in used]
-    require(free, 'Every effect number is held by a bundled machine')
+    require(free, 'Every effect number is fixed')
     return {'effect': free[0], 'page': rules['effect_page']}
 
 
 def collection(entries=None, layout=None):
     """Machines in firmware order, with their numbers in the layout: the order sets
     startup, catalog and link layout, and which machine new to the layout is numbered first.
-    Entries come from read_collection; the default is profiles/collection.json."""
-    entries = read_collection() if entries is None else entries
-    require(isinstance(entries, list) and entries, 'Collection needs machines')
-    machines = [machine_at(e['path']) if isinstance(e, dict) else machine(e) for e in entries]
+    Entries come from read_collection."""
+    entries = [] if entries is None else entries
+    require(isinstance(entries, list) and entries,
+            'Collection needs machines: pass --machine <folder>, or --collection local/catalog/collection.json '
+            'after python sdk.py catalog fetch')
+    machines = [machine_at(e['path']) for e in entries]
     identities = [m.id for m in machines]
     require(len(set(identities)) == len(identities), 'Collection needs distinct machines')
     machines, _numbers = assign_numbers(machines, layout)

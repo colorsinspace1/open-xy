@@ -9,11 +9,12 @@ from dataclasses import replace
 
 from tooling import adapters, native, catalog
 from tooling.definitions import validate_definition
-from tooling.machines import machine, machine_at, assign_numbers
+from tooling.machines import machine_at, assign_numbers
+from machine_fixtures import fixture
 
 
 def drawing_sample(name='orbit'):
-    source = machine('macroosc')
+    source = fixture('probesynth')
     definition = copy.deepcopy(source.definition)
     definition['id'] = name
     definition['resources'] = dict(voiceCapacity=256, display=definition['resources']['display'], singleSample=1)
@@ -35,7 +36,7 @@ class SamplePages(unittest.TestCase):
         with patch.object(catalog, 'fetch', side_effect=[first, second]):
             self.assertIn('sample assignment mode', catalog.release_controls([old], [new], allow=True)[0])
 
-    def test_capabilities_validate_independently_and_require_11(self):
+    def test_capabilities_validate_independently_and_require_15(self):
         m = drawing_sample()
         for single in (0, 1):
             definition = copy.deepcopy(m.definition)
@@ -52,14 +53,14 @@ class SamplePages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'definition.json').write_text(json.dumps(m.definition))
-            record = dict(schema=1, sdk='1.1', kind='sample', description='Sample capability fixture', identity=m.identity)
+            record = dict(schema=1, sdk='1.5', kind='sample', description='Sample capability fixture', identity=m.identity)
             def load():
                 (root / 'machine.json').write_text(json.dumps(record))
                 return machine_at(root)
             self.assertEqual(load().display, 'drawing')
-            record['sdk'] = '1.0'
-            with self.assertRaisesRegex(ValueError, '1.1'): load()
-            record['sdk'] = '1.1'
+            record['sdk'] = '1.4'
+            with self.assertRaisesRegex(ValueError, '1.5'): load()
+            record['sdk'] = '1.5'
             record['identity']['page'] = 7
             with self.assertRaises(ValueError): load()
 
@@ -88,13 +89,13 @@ class SamplePages(unittest.TestCase):
                          ['display', 'screen', 'registration', 'sample_voice'])
 
     def test_single_sample_without_a_screen_keeps_stock_page(self):
-        definition = copy.deepcopy(machine('timestretch').definition)
+        definition = copy.deepcopy(fixture('probesample').definition)
         definition['id'] = 'oneshot'
         definition['resources'] = dict(voiceCapacity=256, singleSample=1)
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'definition.json').write_text(json.dumps(definition))
-            record = dict(schema=1, sdk='1.1', kind='sample', description='Single sample fixture',
+            record = dict(schema=1, sdk='1.5', kind='sample', description='Single sample fixture',
                           identity=dict(engine=44, page=2))
             (root / 'machine.json').write_text(json.dumps(record))
             self.assertEqual(machine_at(root).display, 'stock')

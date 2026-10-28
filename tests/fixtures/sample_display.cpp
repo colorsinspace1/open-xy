@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <cstring>
 static void host_barrier() {}
-#include "../../sdk/platform/opxy-1.2.0/sample_display.cpp"
+#include "../../sdk/platform/opxy-1.2.1/sample_display.cpp"
 
 static void check(bool value) { if (!value) std::abort(); }
 static unsigned acquired, released, wakes;

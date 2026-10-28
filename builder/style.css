@@ -48,6 +48,8 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .steps b { display:block; font:11px/1.8 Consolas,monospace; font-weight:400; color:var(--muted); }
 .steps [aria-current=step] { background:var(--soft); }
 .nav-icon { display:flex; width:34px; flex:none; }
+.source-link { margin-top:auto; padding:0 14px; font-size:12px; color:var(--muted); }
+.source-link:hover { color:var(--ink); }
 .nav-icon svg { width:100%; }
 .main-stage { min-width:0; background:var(--panel); border-radius:20px; padding:24px clamp(24px,3vw,48px); }
 #builder-workspace { max-width:1100px; margin:auto; }
@@ -122,6 +124,13 @@ details input { max-width:100%; }
 .machine-list { --machine-row:82px; --machine-gap:8px; display:grid; gap:var(--machine-gap); grid-auto-rows:minmax(var(--machine-row),auto); align-content:start; min-height:calc(var(--machine-count,4) * var(--machine-row) + (var(--machine-count,4) - 1) * var(--machine-gap)); }
 .machine { display:grid; grid-template-columns:28px 38px minmax(0,1fr); align-items:center; gap:12px; padding:15px 12px; border:1px solid transparent; border-radius:9px; }
 .machine.selected { background:var(--soft); }
+.machine:is([data-origin="bundled"],[data-origin="official"]) { background:#333; }
+.machine:is([data-origin="bundled"],[data-origin="official"]).selected { background:#484848; }
+.machine:is([data-origin="bundled"],[data-origin="official"]).selected .machine-meta { color:#bbb; }
+.machine:is([data-origin="bundled"],[data-origin="official"]) .machine-origin { border-color:#888; }
+.machine[data-origin="catalog"] { background:#1e1e1e; }
+.machine[data-origin="catalog"].selected { background:#242424; }
+.machine[data-origin="catalog"] .machine-origin { color:#ccc; border-color:#666; }
 .machine:has(button[aria-pressed=true]) { border-color:#777; }
 .machine label { display:flex; align-items:center; min-height:44px; }
 .machine input { width:18px; height:18px; accent-color:var(--accent); margin:0; cursor:pointer; }
@@ -134,22 +143,29 @@ details input { max-width:100%; }
 .machine-meta span+span { display:none; }
 .machine-meta .machine-memory { display:inline; margin-left:10px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .machine-meta .machine-origin { display:inline; margin-left:10px; font-size:10px; border:1px solid var(--line); padding:1px 6px; border-radius:4px; }
-.detail-source { font-size:12px; color:var(--muted); margin:-4px 0 12px; }
-.detail-source a { color:inherit; }
-.inspector { padding:8px 0 0; }
+.detail-source { font-size:12px; color:var(--muted); margin:-4px 0 12px; overflow-wrap:anywhere; }
+.detail-source a { color:inherit; text-underline-offset:2px; }
+.detail-source a:hover { color:var(--ink); }
+.inspector { padding:8px 0 0; container-type:inline-size; }
+.summary-space { display:grid; }
+.summary-space>* { grid-area:1 / 1; min-width:0; display:flow-root; }
+.summary-sizing { visibility:hidden; pointer-events:none; }
+.detail-name,.detail-description { overflow-wrap:anywhere; }
 .inspector-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .inspector-top .eyebrow { margin:0; }
 .tag { font-size:10px; color:var(--muted); border:1px solid var(--line); padding:2px 7px; border-radius:4px; }
 .inspector h2 { font-size:23px; }
 .inspector p { font-size:13px; }
+.inspector .community-notice { font-size:12px; line-height:1.6; margin:0 0 16px; padding:10px 12px; border-left:2px solid var(--line); background:var(--soft); }
 .art-preview { position:relative; background:#080808; aspect-ratio:480/220; border:1px solid var(--line); border-radius:7px; overflow:hidden; display:grid; place-items:center; color:var(--muted); }
+.preview-space { min-width:0; }
 .art-preview>* { position:absolute; inset:0; width:100%; height:100%; }
 .art-preview svg { display:block; width:100%; height:100%; cursor:pointer; }
 .art-placeholder { display:grid; place-items:center; padding:20px; text-align:center; font:12px Consolas,monospace; }
-#detail-description { min-height:3lh; }
+.detail-description { min-height:3lh; }
 #art-caption { min-height:2lh; }
 .caption { font-size:11px!important; margin:8px 0 18px; }
-.audition-controls { display:flex; align-items:center; gap:18px; min-height:44px; margin:10px 0; }
+.audition-controls { display:flex; align-items:center; gap:18px; min-height:56px; margin:10px 0; }
 /* The preview keyboard: white keys in a row, black keys overlapping their neighbours. */
 .preview-keys { display:flex; align-items:flex-start; flex:none; touch-action:none; user-select:none; }
 .preview-key { position:relative; width:24px; height:56px; min-height:0; padding:0 0 4px; display:flex; align-items:flex-end; justify-content:center;
@@ -162,14 +178,20 @@ details input { max-width:100%; }
 .preview-key:focus-visible { outline-offset:2px; z-index:2; }
 .audition-volume { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted); min-width:0; }
 .audition-volume input { width:100%; min-width:32px; max-width:100px; accent-color:var(--ink); }
-.controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; min-height:50px; align-content:start; }
+@container(max-width:440px) {
+  .audition-controls { flex-wrap:wrap; align-content:start; row-gap:12px; min-height:92px; }
+  .audition-volume { flex-basis:100%; min-height:24px; }
+}
+.controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; grid-template-rows:repeat(2,minmax(calc(2lh + 32px),auto)); font-size:11px; align-content:start; }
 .control { color:var(--muted); font-size:11px; }
 .preview-control { display:flex; flex-direction:column; gap:8px; color:var(--muted); font-size:11px; min-width:0; }
+.preview-control>span { min-height:2lh; overflow-wrap:anywhere; }
 .preview-control input { width:100%; accent-color:var(--accent); margin:0; height:24px; }
 .preview-control:focus-within { color:var(--ink); }
 .machine-facts { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; font-size:12px; margin:16px 0 0; }
 .machine-facts dt { color:var(--muted); }
 .machine-facts dd { margin:0; font-family:Consolas,monospace; }
+.inspector .machine-facts { min-height:calc(6lh + 40px); align-content:start; }
 .capacity { margin-top:32px; padding-top:24px; border-top:1px solid var(--line); }
 .capacity-heading { display:flex; justify-content:space-between; gap:12px; margin-bottom:14px; }
 .capacity-heading h2 { font-size:14px; margin:0; }
@@ -182,7 +204,8 @@ details input { max-width:100%; }
 .capacity details { margin-bottom:0; }
 #download-overview { width:100%; text-align:center; max-width:760px; margin:auto; }
 .download-card h2 { font-size:19px; }
-#bundle-art { max-width:440px; margin:0 auto 28px; text-align:left; }
+#bundle-art { max-width:440px; max-height:240px; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin:0 auto 28px; text-align:left; }
+#bundle-art:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
 .download-card p { font-size:14px; }
 .download-card .primary { margin:12px 0; min-width:210px; }
 .qualification { font-size:12px; max-width:540px; margin:14px auto; }
@@ -349,7 +372,6 @@ footer details[open] { flex-basis:100%; }
   .art-preview { width:288px; max-width:100%; }
   .inspector>details { margin:8px 0; }
   .audition-controls { margin:6px 0; }
-  .controls { height:52px; min-height:52px; }
   .filters button { min-height:36px; }
   footer { margin-top:16px; }
   .inspector-top { margin-bottom:8px; }
@@ -363,8 +385,7 @@ footer details[open] { flex-basis:100%; }
   .memory-legend { margin-top:8px; gap:4px 12px; }
 }
 @media(min-width:1200px) {
-  #detail-description { min-height:2lh; }
-  #art-caption { min-height:1lh; }
+  .detail-description { min-height:2lh; }
 }
 
 /* A compact navigation rail: each step's icon above its name. */
@@ -377,25 +398,49 @@ footer details[open] { flex-basis:100%; }
   .steps button { flex-direction:column; justify-content:center; gap:6px; padding:12px 6px; font-size:12px; text-align:center; }
   .steps b { display:none; }
   .nav-icon { width:26px; }
+  .source-link { padding:0; text-align:center; }
 }
-/* Machines on a desktop window: the page fills the window, with its header and
-   actions in view. Only the machine list scrolls inside it; the details set the
-   row's height and the list takes what is left, beside memory usage. */
-@media(min-width:1000px) and (min-height:600px) {
-  main:has([data-page="2"]:not([hidden])) { align-items:stretch; }
-  main:has([data-page="2"]:not([hidden])) .main-stage { display:flex; flex-direction:column; min-height:calc(100dvh - 48px); }
+/* Fit the machine step to a desktop window. The screen takes the remaining
+   space; the list can grow without moving the memory bar or install button. */
+@media(min-width:801px) and (min-height:700px) {
+  main:has([data-page="2"]:not([hidden])) { align-items:stretch; height:100dvh; padding-top:16px; padding-bottom:16px; }
+  main:has([data-page="2"]:not([hidden])) .main-stage { min-height:0; padding-top:16px; padding-bottom:16px; }
   #builder-workspace:has([data-page="2"]:not([hidden])) { flex:1; min-height:0; }
   [data-page="2"]:not([hidden]) { min-height:0; }
-  [data-page="2"] .page-header { margin-bottom:14px; }
-  [data-page="2"] .page-header h1 { font-size:24px; }
+  [data-page="2"] .page-header { position:relative; text-align:left; margin-bottom:12px; flex:none; }
+  [data-page="2"] .page-header .eyebrow,[data-page="2"] .page-header p { display:none; }
+  [data-page="2"] .page-header h1 { font-size:24px; margin:0; }
+  [data-page="2"] .counter { position:absolute; top:0; right:0; margin:0; }
   [data-page="2"] .workspace { flex:1; min-height:0; align-items:stretch; }
   /* contain:size: the list column takes the row's height, never sets it. */
-  [data-page="2"] .workspace>div { contain:size; display:flex; flex-direction:column; min-height:280px; }
-  [data-page="2"] .machine-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:6px; }
-  [data-page="2"] .actions { flex:none; }
+  [data-page="2"] .workspace>div { contain:size; display:flex; flex-direction:column; min-height:0; }
+  [data-page="2"] .machine-list { flex:1; height:0; min-height:0; padding-right:6px; }
+  [data-page="2"] .actions { flex:none; margin-top:12px; padding-top:8px; }
+  .inspector { display:flex; flex-direction:column; min-height:0; padding-top:0; }
+  .summary-space { flex:none; }
+  .inspector-top { margin-bottom:4px; }
+  .inspector h2 { font-size:20px; margin-bottom:4px; }
+  .inspector .detail-description { min-height:0; font-size:12px; line-height:1.4; margin-bottom:6px; }
+  .inspector .detail-source { font-size:11px; line-height:1.4; margin:0 0 6px; }
+  .inspector .community-notice { font-size:11px; line-height:1.4; padding:6px 8px; margin-bottom:8px; }
+  .preview-space { flex:1; min-height:70px; max-height:200px; display:flex; justify-content:flex-start; }
+  .preview-space .art-preview { height:100%; width:auto; max-width:100%; aspect-ratio:480/220; }
+  #art-caption { flex:none; min-height:2lh; line-height:1.3; margin:4px 0 6px; }
+  .controls { flex:none; gap:4px 12px; grid-template-rows:repeat(2,minmax(calc(1lh + 18px),auto)); line-height:1.3; }
+  .preview-control { gap:0; }
+  .preview-control>span { min-height:1lh; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .preview-control input { height:18px; }
+  .audition-controls { flex:none; min-height:36px; gap:10px; margin:6px 0; flex-wrap:nowrap; align-content:normal; }
+  .preview-key { width:18px; height:36px; padding-bottom:2px; }
+  .preview-key.black { width:12px; height:23px; margin:0 -6px; }
+  .audition-volume { flex-basis:auto; gap:6px; }
+  .audition-volume input { max-width:72px; }
+  .inspector>details { flex:none; position:relative; margin:0; font-size:11px; }
+  .inspector>details .machine-facts { position:absolute; bottom:100%; left:0; right:0; z-index:2; padding:12px; background:var(--paper); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px #0009; }
+  main:has([data-page="2"]:not([hidden])) footer { flex:none; margin-top:12px; padding-top:8px; }
 }
 /* Compact machine rows. */
-.machine-list { --machine-row:52px; --machine-gap:4px; min-height:0; }
+.machine-list { --machine-row:52px; --machine-gap:4px; min-height:0; height:clamp(280px,50dvh,448px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-gutter:stable; }
 .machine { grid-template-columns:22px 26px minmax(0,1fr); gap:10px; padding:6px 10px; }
 .machine label { min-height:32px; }
 .machine input { width:16px; height:16px; }

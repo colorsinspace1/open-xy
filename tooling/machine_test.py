@@ -2,9 +2,9 @@
 
 For each folder: the machine's records and sources against this SDK, a browser
 preview build of an authored display, the machine's own host tests (tests/*.cpp, compiled
-against the SDK headers and run), an estimate of its CPU cost next to the
-bundled machines', and optionally a native compile of the bundled collection
-plus every folder. No stock files and no device.
+against the SDK headers and run), an estimate of its CPU cost next to Open-XY's
+core machines', and optionally a native compile of every folder together. No
+stock files and no device.
 """
 import argparse
 import os
@@ -45,7 +45,7 @@ def main(argv=None):
     parser.add_argument('--host-cxx', default='c++', help='host C++11 compiler for tests/*.cpp')
     parser.add_argument('--no-cpu', action='store_true', help='skip the CPU estimate')
     parser.add_argument('--firmware', action='store_true',
-                        help='also compile the bundled collection plus these machines with the pinned Blackfin tools')
+                        help='also compile these machines together with the pinned Blackfin tools')
     args = parser.parse_args(argv)
     try:
         machines = [machine_at(folder) for folder in args.machine]

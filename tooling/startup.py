@@ -6,7 +6,7 @@ from .definitions import ROOT
 from .formats import require
 from .stock_tables import ENGINE_SENTINEL
 
-TEMPLATE = 'sdk/platform/opxy-1.2.0/startup.cpp.in'
+TEMPLATE = 'sdk/platform/opxy-1.2.1/startup.cpp.in'
 MAX_ENGINES = 32
 
 

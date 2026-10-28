@@ -40,8 +40,8 @@ static opxy::u32 audio_tempo = 0x42f00000u; // Cached audio tempo: 120 BPM.
 static const volatile opxy::u16* project_data() { return project_present ? project : nullptr; }
 static unsigned assignment_engine(unsigned track) { check(track == 0); return kProbe; }
 opxy::platform::Address opxy::platform::host_stock_address(Address address) {
-    if (address == 0x8d5827b0) return reinterpret_cast<Address>(&project_data);
-    if (address == 0x8d585eb4) return reinterpret_cast<Address>(&assignment_engine);
+    if (address == 0x8d584210) return reinterpret_cast<Address>(&project_data);
+    if (address == 0x8d58781c) return reinterpret_cast<Address>(&assignment_engine);
     if (address == kAudioBpm) return reinterpret_cast<Address>(&audio_tempo);
     std::abort();
 }

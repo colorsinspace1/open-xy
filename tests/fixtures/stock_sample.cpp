@@ -1,4 +1,4 @@
-#include "../../sdk/platform/opxy-1.2.0/stock_sample.hpp"
+#include "../../sdk/platform/opxy-1.2.1/stock_sample.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>

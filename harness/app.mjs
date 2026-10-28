@@ -15,11 +15,12 @@ if (customPreview) {
   document.querySelector('.badge').textContent = 'LOCAL AUTHORING';
   document.getElementById('preview-mode').textContent = 'Local authoring preview. This audition does not qualify a firmware build.';
 }
-import { createControls, shownControls, VIEWS } from '../sdk/browser/controls.mjs';
+import { createControls, editedShown, shownControls, VIEWS } from '../sdk/browser/controls.mjs';
 const controls = createControls(previewManifest.definition);
 const { definition, parameters, positions, defaults, presets, displayValue, makePatch, readPatch, validateParameters, q31 } = controls;
 import { renderScreen as renderBase } from './screen.mjs';
-import { PreviewDisplay, SvgDisplay } from '../sdk/browser/display.mjs';
+import { PreviewDisplay, SvgDisplay, NoteActivity } from '../sdk/browser/display.mjs';
+const noteActivity = new NoteActivity();
 const renderScreen = (...args) => renderBase(...args, controls, shown, scene?.header);
 const $ = id => document.getElementById(id);
 const controlId = id => customPreview ? `custom-control-${parameters.findIndex(p => p.id === id)}` : id;
@@ -56,7 +57,7 @@ for (const [i, param] of parameters.entries()) {
   $('controls').append(item);
   $(id).addEventListener('input', event => {
     values[param.id] = Number(event.target.value);
-    shown[positions[i]] = i;
+    shown = editedShown(shown, positions, i, previewManifest.definition.press === 'page');
     update();
   });
 }
@@ -71,7 +72,7 @@ function draw(elapsed = 0) {
     if (!audioAvailable) display.setActivity(new Set(held.values()).size);
     const input = shownControls(parameterWords(), shown);
     try {
-      scene.apply(display.tick(input, elapsed, visualNotes, 0, reducedMotion.matches));
+      scene.apply(display.tick(input, elapsed, visualNotes, 0, reducedMotion.matches, noteActivity));
     }
     catch (error) { display = scene = displayBackend = null; status(`Display stopped: ${error.message}`); }
   }
@@ -187,6 +188,7 @@ function noteOn(source, note, velocity = 0.8) {
   held.set(source, note);
   if (!existing) {
     send({ type: 'on', note, velocity });
+    noteActivity.noteOn(note);
     visualNotes = (visualNotes + 1) >>> 0;
     draw();
   }
@@ -196,14 +198,18 @@ function noteOn(source, note, velocity = 0.8) {
 function noteOff(source) {
   const note = held.get(source);
   held.delete(source);
-  if (note !== undefined && ![...held.values()].includes(note)) send({ type: 'off', note });
+  if (note !== undefined && ![...held.values()].includes(note)) {
+    send({ type: 'off', note });
+    noteActivity.noteOff(note);
+    draw();
+  }
   paintKeys();
   if (!audioAvailable) draw();
 }
 function panic() {
   for (const timer of timers) clearTimeout(timer);
   timers.clear(); held.clear(); send({ type: 'panic' });
-  display?.reset(); draw();
+  noteActivity.panic(); draw();
   paintKeys(); $('phrase').textContent = 'Play phrase';
 }
 for (const [i, key] of keys.entries()) {
@@ -284,7 +290,7 @@ window.machineLab = Object.freeze({
   noteOff: note => noteOff(`api-${note}`), panic,
   getStatus: () => ({ audio: context?.state || 'off', heldNotes: held.size, sampleRate: context?.sampleRate || null,
     audioBackend, displayBackend,
-    visualNotes,
+    visualNotes, noteActivity: { held_notes: display?.input[17] ?? null, note_off_serial: display?.input[18] ?? null },
     rms: samples ? Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length) : 0 }),
 });
 update();

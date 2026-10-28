@@ -55,16 +55,43 @@ struct Input {
     i32 parameters[page_controls];
     i32 elapsed;             // Q10 seconds; the author clamps late/invalid frames.
     u32 track;               // Track identity, not a device address.
-    u32 note_serial;         // Snapshot, not an event queue; wraps modulo 2^32.
+    union { u32 note_serial; u32 note_on_serial; }; // Same note-start counter; wraps modulo 2^32.
     u32 reduced_motion;
     u8 shown[page_controls];  // Declared parameter shown at each position: its own or an alternate.
     i32 slots[parameter_slots];  // Every declared parameter's value, 0 beyond the declared ones.
+    u32 held_notes;          // Distinct gated MIDI pitches, 0..128; notes_unavailable if unknown.
+    u32 note_off_serial;     // Gate closures, excluding duplicate releases and audio release tails.
 };
-static_assert(sizeof(Input) == 68 && __builtin_offsetof(Input, elapsed) == 16 && __builtin_offsetof(Input, track) == 20 &&
+const u32 notes_unavailable = 0xffffffffu;
+static_assert(sizeof(Input) == 76 && __builtin_offsetof(Input, elapsed) == 16 && __builtin_offsetof(Input, track) == 20 &&
               __builtin_offsetof(Input, note_serial) == 24 && __builtin_offsetof(Input, reduced_motion) == 28 &&
-              __builtin_offsetof(Input, shown) == 32 && __builtin_offsetof(Input, slots) == 36,
+              __builtin_offsetof(Input, shown) == 32 && __builtin_offsetof(Input, slots) == 36 &&
+              __builtin_offsetof(Input, held_notes) == 68 && __builtin_offsetof(Input, note_off_serial) == 72,
               "Drawing input layout (display.mjs)");
 static_assert(sizeof(Node) == 28 && sizeof(Text) == 36, "Drawing frame layout (display.mjs)");
+
+// Store a zero-initialized NoteTracker in DisplayState. Events describe changes
+// between frames, not a queue. Reset/track changes establish a baseline, even
+// when notes are already held. An unavailable snapshot also clears the baseline.
+struct NoteEvents { bool hold_started, hold_ended, note_released; };
+struct NoteTracker {
+    u32 initialized, track, held_notes, note_off_serial;
+    void reset() { initialized = 0; }
+    NoteEvents update(const Input& input) {
+        NoteEvents events = {};
+        if (input.held_notes > 128) { initialized = 0; return events; }
+        if (initialized && track == input.track) {
+            events.hold_started = !held_notes && input.held_notes;
+            events.hold_ended = held_notes && !input.held_notes;
+            events.note_released = note_off_serial != input.note_off_serial;
+        }
+        initialized = 1;
+        track = input.track;
+        held_notes = input.held_notes;
+        note_off_serial = input.note_off_serial;
+        return events;
+    }
+};
 
 // Defined floor division by 1024 on both compilers, including negative values.
 // Callers keep products inside int32. No floating point or runtime division.

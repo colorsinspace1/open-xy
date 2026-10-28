@@ -11,9 +11,13 @@ def active_services(profile, kinds):
     return {name for name, users in profile.get('services', {}).items() if kinds & set(users)}
 
 
-def patch_active(patch, services):
-    """An edit applies unless it belongs to a service the build leaves out."""
-    return 'service' not in patch or patch['service'] in services
+def patch_active(patch, services, profiling=True):
+    """Select optional service hooks and the reviewed profiling bypasses."""
+    require(type(profiling) is bool, 'Profiling must be a boolean')
+    require('profiling' not in patch or (patch['profiling'] is False and patch['kind'] == 'hook'),
+            'Invalid profiling hook')
+    return (('service' not in patch or patch['service'] in services) and
+            ('profiling' not in patch or patch['profiling'] is profiling))
 
 
 def hooks(profile):
@@ -68,9 +72,10 @@ def hook_target(patch, instruction):
     return decode_branch(int(patch['address'], 16), instruction[:4])
 
 
-def assemble(stock, module, profile, original_profile, edits, services):
+def assemble(stock, module, profile, original_profile, edits, services, profiling=True):
+    require(type(profiling) is bool, 'Profiling must be a boolean')
     require(sha(stock) == original_profile['stock_sha256'] and len(stock) == original_profile['stock_bytes'],
-            'Expected exact decrypted stock OP-XY 1.2.0')
+            'Expected exact decrypted stock OP-XY 1.2.1')
     require(len(module) > 0 and len(module) <= original_profile['reserved_bytes'], 'Invalid module size')
     require(len(profile['patches']) == len(original_profile['patches']) == edits, f'Expected {edits} edit intervals')
     low = original_profile['module_base']
@@ -78,8 +83,10 @@ def assemble(stock, module, profile, original_profile, edits, services):
         require(all(patch[k] == original[k] for k in ('kind', 'address', 'before', 'file_offset', 'length')),
                 'Changed patch boundary')
         after = bytes.fromhex(patch['after'])
-        if not patch_active(original, services):
-            require(patch['after'] == original['before'], 'An unused service changed stock')
+        require(all(patch.get(k) == original.get(k) for k in ('service', 'profiling', 'symbol', 'call')),
+                'Changed patch policy')
+        if not patch_active(original, services, profiling):
+            require(patch['after'] == original['before'], 'An inactive hook changed stock')
         elif original['kind'] == 'startup':
             target = startup_label.destination(after)
             require(low <= target < low + len(module), 'Startup hook does not target module')

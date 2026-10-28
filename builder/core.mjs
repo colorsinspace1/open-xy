@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'e1fe7748290fbdda5c6ff89acf4c4cad52d9bece6d65b0ae06a47109bb64bb28';
+export const PROFILE_SHA256 = '1a0ba85ed69a28850ff8db5a385963c1b39b831d76f17d02353076d5e7c6f8bd';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -23,8 +23,9 @@ function join(parts) {
   let at = 0; for (const p of parts) { output.set(p, at); at += p.length; } return output;
 }
 
-// Only ET_REL objects exported by the maintainer are accepted. SHF_MERGE and
-// SHF_STRINGS are removed by the exporter, identically for GNU and this linker.
+// Only ET_REL objects exported by the maintainer are accepted. SHF_MERGE,
+// SHF_STRINGS and COMDAT groups are removed by the exporter, identically for GNU
+// and this linker.
 export function readObject(bytes) {
   check(bytes.length >= 52 && bytes.length <= 2 ** 20, 'Object size outside bounds');
   const d = view(bytes), u16 = at => d.getUint16(at, true), u32 = at => d.getUint32(at, true);
@@ -95,6 +96,18 @@ export function readObject(bytes) {
   return {sections, symbols, relocations};
 }
 
+// The selections the release checks link, as bit masks over kit.machines: every
+// combination of Open-XY's own machines, each other machine with all of those, and
+// everything together.
+export function checkedSelections(machines) {
+  const bit = i => 2 ** i, all = bit(machines.length) - 1;
+  const core = machines.reduce((mask, m, i) => m.origin === 'official' ? mask + bit(i) : mask, 0);
+  const masks = new Set([all]);
+  for (let mask = core; mask; mask = (mask - 1) & core) masks.add(mask);
+  machines.forEach((m, i) => { if (!(core & bit(i))) masks.add(core + bit(i)); });
+  return [...masks].sort((a, b) => a - b);
+}
+
 // The profile's identity rules, as tooling.machines.check_identity applies them.
 export function validIdentity(rules, kind, identity, screen = false) {
   const slot = kind === 'effect' ? 'effect' : 'engine';
@@ -107,22 +120,22 @@ export function validIdentity(rules, kind, identity, screen = false) {
     : kind === 'synth' && page > rules.page_none && page < rules.pages;
 }
 
-// A kit's numbers: each machine asks for valid ones, and the bundled machines'
-// fixed numbers are their own and never shared.
+// A kit's numbers: each machine asks for valid ones, and fixed numbers (kit.fixed,
+// tooling.machines.FIXED_NUMBERS) belong to their own machines and are never shared.
 function checkNumbers(kit) {
   const rules = kit.profile.identities;
-  check(kit.fixed && typeof kit.fixed === 'object', 'Missing bundled machine numbers');
+  check(kit.fixed && typeof kit.fixed === 'object', 'Missing fixed machine numbers');
   check(new Set(kit.machines.map(m => m.id)).size === kit.machines.length, 'Duplicate machine');
   for (const m of kit.machines) {
     check(validIdentity(rules, m.kind, m.identity, Boolean(m.asset)), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
-    check((m.origin === 'bundled') === Object.hasOwn(kit.fixed, m.id) &&
-      (m.origin !== 'bundled' || sameNumbers(kit.fixed[m.id], m.identity)), 'Bundled machine numbers differ: ' + m.id);
+    check(!Object.hasOwn(kit.fixed, m.id) || sameNumbers(kit.fixed[m.id], m.identity),
+      'Fixed machine numbers differ: ' + m.id);
   }
   numberLayout(rules, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]), null, []);
 }
 // Machine numbers, as tooling.machines.number_layout gives them (tests/fixtures/numbers.json
 // holds both). Projects store a track's engine, effect and page numbers, so a machine
-// keeps its numbers in a firmware for good. Bundled machines' are fixed (kit.fixed);
+// keeps its numbers in a firmware for good. Open-XY's first machines' are fixed (kit.fixed);
 // a layout keeps every number it has given out, including to machines since dropped,
 // and a machine new to it gets the numbers it asks for when free, else the lowest free.
 export const LAYOUT_FORMAT = 'opxy-layout/1';
@@ -133,6 +146,8 @@ export function numberPools(rules) {
 }
 export function occupied(rules, identity) {
   const keys = ['engine', 'effect'].filter(slot => Object.hasOwn(identity, slot)).map(slot => slot + ' ' + identity[slot]);
+  // Stock reads a send track's effect number as its engine: no engine shares it.
+  if (Object.hasOwn(identity, 'effect')) keys.push('engine ' + identity.effect);
   if (!Object.hasOwn(identity, 'effect') && !rules.sample_pages.includes(identity.page)) keys.push('page ' + identity.page);
   return keys;
 }
@@ -150,7 +165,9 @@ export function numberLayout(rules, fixed, layout, machines) {
   for (const [name, , identity] of fixed) hold(name, identity);
   for (const [name, identity] of Object.entries(layout ?? {})) {
     if (Object.hasOwn(numbers, name))
-      check(sameNumbers(numbers[name], identity), `${name} is bundled with fixed numbers; the layout gives it others`);
+      check(sameNumbers(numbers[name], identity), `${name} has fixed numbers; the layout gives it others`);
+    // An effect number later found unusable on stock is let go and numbered again.
+    else if (Object.hasOwn(identity, 'effect') && !pools.effect.includes(identity.effect)) continue;
     else hold(name, identity);
   }
   for (const [name, kind, requested, screen = false] of machines) {
@@ -163,7 +180,9 @@ export function numberLayout(rules, fixed, layout, machines) {
     const identity = {...requested};
     for (const slot of kind === 'effect' ? ['effect'] : kind === 'synth' || screen ? ['engine', 'page'] : ['engine']) {
       const choices = [...(pools[slot].includes(requested[slot]) ? [requested[slot]] : []), ...pools[slot]];
-      identity[slot] = choices.find(n => !holders.has(slot + ' ' + n));
+      // An effect number is also held as an engine number (occupied).
+      const keys = n => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
+      identity[slot] = choices.find(n => !keys(n).some(key => holders.has(key)));
       check(identity[slot] !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
     }
     check(validIdentity(rules, kind, identity, screen), `${name}: no valid numbers`);
@@ -174,7 +193,9 @@ export function numberLayout(rules, fixed, layout, machines) {
 // A saved layout (layout.json from a build, or a saved selection): its numbers and selection.
 // Saved selections from before layouts listed the selected machines' numbers as identities.
 export function readLayout(kit, saved) {
-  check(saved && typeof saved === 'object' && saved.profile === kit.profile.id,
+  // Earlier profiles with the same identity rules number machines the same way.
+  check(saved && typeof saved === 'object' &&
+    [kit.profile.id, ...(kit.profile.layout_profiles ?? [])].includes(saved.profile),
     'This layout is for a different OS version.');
   const numbers = saved.format === LAYOUT_FORMAT ? saved.machines : saved.format === 'opxy-kit/1' ? saved.identities : null;
   check(numbers && typeof numbers === 'object' && !Array.isArray(numbers), 'This file is not a machine layout.');
@@ -208,10 +229,11 @@ function catalogEntry(m, numbers) {
   return m.kind === 'effect' ? m.catalog.replace(/"id":\s*\d+/, '"id": ' + numbers[m.id].effect) : m.catalog;
 }
 
-// Where a machine comes from (tooling.browser_kit): bundled with Open-XY, published
-// in the catalog, or a personal kit's own folder. A catalog machine's source is its
+// Where a machine comes from (tooling.browser_kit): published in the catalog, or a
+// personal kit's own folder. A catalog machine's source is its
 // GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
-export const ORIGINS = ['bundled', 'catalog', 'personal'];
+// Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
+export const ORIGINS = ['official', 'catalog', 'personal'];
 const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
   tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
 export function validSource(source) {
@@ -219,7 +241,10 @@ export function validSource(source) {
     Object.keys(source).sort().join() === Object.keys(RELEASE).sort().join() &&
     Object.entries(RELEASE).every(([key, pattern]) => typeof source[key] === 'string' && pattern.test(source[key]));
 }
-export const validOrigin = m => ORIGINS.includes(m.origin) && (m.origin === 'catalog' ? validSource(m.source) : m.source === undefined);
+const released = m => m.origin === 'catalog' || m.origin === 'official';
+export const validOrigin = m => ORIGINS.includes(m.origin) && (released(m) ? validSource(m.source) : m.source === undefined);
+// A first selection leaves community machines for the user to choose.
+export const chosenByDefault = m => m.origin !== 'catalog';
 // The machine's code at the commit the catalog pins, and its owner/repository name.
 export const sourceUrl = source => source.repository + '/tree/' + source.commit;
 export const sourceName = source => source.repository.slice('https://github.com/'.length);
@@ -389,10 +414,11 @@ export function redirect(edit, destination) {
   after.set(words((edit.call ? 0xe300 : 0xe200) | value >>> 16, value & 0xffff));
   return after;
 }
-export async function patchFirmware(kit, linked, stock) {
+export async function patchFirmware(kit, linked, stock, {profiling = true} = {}) {
+  check(typeof profiling === 'boolean', 'Profiling must be a boolean');
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
+    'Only OP–XY OS 1.2.1 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
   const blocks = readLdr(stock), first = blocks[0], final = blocks.at(-1);
   check(blocks.length === p.stock_records && first.count === 0 && (first.code & 0xffff) === 0x5004 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004, 'Unexpected stock loader layout');
@@ -414,14 +440,16 @@ export async function patchFirmware(kit, linked, stock) {
     let after;
     check(edit.service === undefined || (edit.kind === 'hook' && Object.hasOwn(p.services ?? {}, edit.service)),
       'Undeclared service: ' + edit.service);
-    if (edit.service && !linked.services.has(edit.service)) {
-      after = before;  // the selection leaves this service's stock code unchanged
+    check(edit.profiling === undefined || (edit.profiling === false && edit.kind === 'hook'),
+      'Invalid profiling hook');
+    if ((edit.service && !linked.services.has(edit.service)) || (edit.profiling === false && profiling)) {
+      after = before;  // inactive hooks leave the corresponding stock code unchanged
     } else if (['hook', 'startup'].includes(edit.kind)) {
       const destination = linked.globals.get(edit.symbol);
       check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
       after = redirect(edit, destination);
     } else {
-      check(['heap', 'table'].includes(edit.kind), 'Unknown edit kind');
+      check(['heap', 'table', 'text'].includes(edit.kind), 'Unknown edit kind');
       after = unhex(edit.after);
     }
     check(before.length === edit.length && after.length === edit.length, 'Patch length mismatch');
@@ -442,44 +470,90 @@ export async function patchFirmware(kit, linked, stock) {
   return candidate;
 }
 
-// Recover only an exact output of this curated collection. The uploaded module
-// is compared with freshly linked code, never executed or reused for a build.
+// Recover stock OS 1.2.1 from the stock file or from any open-xy OS made from
+// it, including an earlier release's, whose module may sit elsewhere. The stock
+// image is rebuilt by undoing every reviewed edit and accepted only by its
+// SHA-256; the uploaded module is never executed or reused for a build. An exact
+// output of this curated collection also restores its machine selection.
 const RECOVERABLE_MACHINES = 10;
+
+// The machines whose code an uploaded module appears to hold: each machine's
+// largest code section, byte for byte outside its relocated fields. Only a
+// guess; recoverFirmware accepts it only by rebuilding it exactly.
+function presentMachines(kit, payload) {
+  return kit.machines.filter(m => {
+    let best = null;
+    for (const o of kit.objects) if (o.owner === m.id) for (const s of o.sections)
+      if (s.group === 'text' && (!best || s.size > best.s.size)) best = {o, s};
+    if (!best || best.s.size < 16) return false;
+    const {o, s} = best, fixed = new Uint8Array(s.size).fill(1);
+    for (const r of o.relocations) if (r.section === s.index) {
+      fixed.fill(0, [10, 13].includes(r.type) ? r.offset - 2 : r.offset, r.offset + (r.type === 18 ? 4 : 2));
+    }
+    const anchor = fixed.indexOf(1);
+    if (anchor < 0) return false;
+    for (let at = 0; at + s.size <= payload.length; at += 2) {
+      if (payload[at + anchor] !== s.data[anchor]) continue;
+      let i = anchor;
+      while (i < s.size && (!fixed[i] || payload[at + i] === s.data[i])) i++;
+      if (i === s.size) return true;
+    }
+    return false;
+  }).map(m => m.id);
+}
+const UPDATE = 'Update your OP–XY to OS 1.2.1 with teenage engineering’s updater, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
+const UNSUPPORTED = 'Only OP–XY OS 1.2.1 is supported. This file is not OS 1.2.1 or an open-xy OS made from it. ' + UPDATE;
 export async function recoverFirmware(kit, input, layout = null) {
   const p = kit.profile;
   if (input.length === p.stock_bytes && await sha256(input) === p.stock_sha256) {
     readLdr(input);
     return {stock: input.slice(), selected: null};
   }
-  check(kit.machines.length <= RECOVERABLE_MACHINES, 'This open-xy OS can’t be recognized. Choose the original OP–XY OS 1.2.0.');
   const blocks = readLdr(input), first = blocks[0], module = blocks.at(-2), final = blocks.at(-1);
   check(blocks.length === p.stock_records + 1 && first.count === 0 &&
     (first.code & 0xffff) === 0x5004 && first.argument === input.length - 16 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004 &&
     module.offset === p.stock_bytes - 16 && (module.code & 0xffff) === 4 &&
-    module.target === p.module_base && module.argument === 0 &&
-    module.count > 0 && module.count <= moduleBytes(p) &&
-    input.length === p.stock_bytes + 16 + module.count,
-    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy OS made from it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
+    module.argument === 0 && module.count > 0 && input.length === p.stock_bytes + 16 + module.count, UNSUPPORTED);
   const stock = join([input.subarray(0, module.offset), input.subarray(final.offset)]);
   stock.set(header(0x5004, first.target, 0, stock.length - 16));
+  // Every released profile's edits are among these (tests/test_profile_parity.py).
   for (const edit of p.patches) stock.set(unhex(edit.before), Number(edit.file_offset));
   check(await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. This open-xy OS was not made from OS 1.2.0.');
+    'Only OP–XY OS 1.2.1 is supported. This open-xy OS was not made from OS 1.2.1. ' + UPDATE);
   const payload = input.subarray(module.offset + 16, final.offset);
-  // Reconstruct every selection's entire image; never trust the uploaded
-  // module or infer ownership from its label. At most 1,023 deterministic links,
-  // each under a millisecond.
-  // Yield between candidates so file changes and navigation remain responsive;
-  // the caller discards stale results.
-  for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
-    const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
-    const linked = linkKit(kit, selected, layout);
-    if (equal(linked.module, payload) && equal(await patchFirmware(kit, linked, stock), input))
-      return {stock, selected};
-    await new Promise(resolve => setTimeout(resolve, 0));
+  if (module.target === p.module_base && module.count <= moduleBytes(p)) {
+    // Reconstruct a selection's entire image; never trust the uploaded module
+    // or infer ownership from its label. SDK builds retain timing; site builds
+    // omit the per-voice bookkeeping. Accept only a complete reconstruction of
+    // one mode, never mixed hooks.
+    const rebuilds = async selected => {
+      const linked = linkKit(kit, selected, layout);
+      if (!equal(linked.module, payload)) return false;
+      for (const profiling of [true, false]) {
+        if (equal(await patchFirmware(kit, linked, stock, {profiling}), input)) return true;
+      }
+      return false;
+    };
+    // First the machines whose code the module holds, one link at any kit size.
+    const present = presentMachines(kit, payload);
+    try {
+      if (present.length && await rebuilds(present)) return {stock, selected: present};
+    } catch {}  // a guess that cannot link is not this kit's build
+    // Small kits also try every selection: at most 1,023 deterministic links,
+    // each under a millisecond. Yield between candidates so file changes and
+    // navigation remain responsive; the caller discards stale results.
+    if (kit.machines.length <= RECOVERABLE_MACHINES) {
+      for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
+        const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
+        if (await rebuilds(selected)) return {stock, selected};
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
   }
-  throw new Error('This open-xy OS has machines this site doesn’t offer. Choose the original OP–XY OS 1.2.0.');
+  // Another open-xy OS: an earlier release, other machines or another build.
+  // Its stock OS is verified above; its machines are chosen again.
+  return {stock, selected: null, earlier: true};
 }
 
 export function presetPath(machine) {
@@ -487,6 +561,27 @@ export function presetPath(machine) {
   check(['synth', 'sample'].includes(machine.kind) && /^[a-z][a-z0-9_]{0,14}$/.test(machine.id),
     'Invalid preset instrument');
   return `content/presets/${machine.id}/default.json`;
+}
+
+// The machine's init preset, then its own presets (tooling.machines.read_presets):
+// each a version 4 preset of this machine, pointing at no samples. Its own
+// default replaces the generated init preset.
+export function presetFiles(machine) {
+  const path = presetPath(machine);
+  if (!path) return {};
+  const presets = machine.presets ?? {};
+  const files = Object.hasOwn(presets, 'default') ? {} : {[path]: defaultPreset(machine)};
+  check(presets && typeof presets === 'object' && !Array.isArray(presets) && Object.keys(presets).length <= 16,
+    'Invalid machine presets');
+  for (const [name, preset] of Object.entries(presets)) {
+    const params = preset?.engine?.params;
+    check(/^[a-z0-9][a-z0-9_-]{0,23}$/.test(name) && preset && typeof preset === 'object' &&
+      preset.version === 4 && preset.platform === 'OP-XY' && preset.type === machine.id &&
+      Array.isArray(preset.regions) && preset.regions.length === 0 && Array.isArray(params) && params.length === 8 &&
+      params.every(n => Number.isInteger(n) && n >= 0 && n <= 32767), 'Invalid machine preset: ' + name);
+    files[`content/presets/${machine.id}/${name}.json`] = preset;
+  }
+  return files;
 }
 
 function defaultPreset(machine) {
@@ -541,10 +636,9 @@ export async function buildAssets(kit, selection, catalog, numbers) {
     expected[key] = [...base[key], ...group.map(m => JSON.parse(catalogEntry(m, numbers).trim().replace(/^,/, '')))];
   check(JSON.stringify(JSON.parse(text)) === JSON.stringify(expected), 'Unexpected catalog modification');
   const files = {'content/op1_factory.json': extended};
-  for (const machine of machines) {
-    const path = presetPath(machine);
-    if (path) files[path] = utf8.encode(JSON.stringify(defaultPreset(machine), null, 2) + '\n');
-  }
+  for (const machine of machines)
+    for (const [path, preset] of Object.entries(presetFiles(machine)))
+      files[path] = utf8.encode(JSON.stringify(preset, null, 2) + '\n');
   if (machines.some(m => m.artwork)) {
     check(await screenTemplateOk(kit), 'Platform screen template differs from the supported ABI');
     const baseSvg = kit.screenTemplate;

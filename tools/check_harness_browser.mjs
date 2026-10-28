@@ -99,9 +99,20 @@ try {
   }
   assert.equal(sounding.heldNotes, 1);
   assert.equal(sounding.visualNotes, 1);
+  assert.deepEqual(sounding.noteActivity, {held_notes:1,note_off_serial:0});
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA' }); await delay(300);
   assert.equal(await evaluate('machineLab.getStatus().heldNotes'), 0);
   assert.ok(await evaluate('machineLab.getStatus().rms < 0.000001'));
+  assert.deepEqual(await evaluate('machineLab.getStatus().noteActivity'), {held_notes:0,note_off_serial:1});
+  // Gate snapshots reach C++ immediately, including while motion is reduced.
+  await command('Emulation.setEmulatedMedia', {features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await evaluate('machineLab.noteOn(60); machineLab.noteOn(64); machineLab.noteOff(60)');
+  assert.deepEqual(await evaluate('machineLab.getStatus().noteActivity'), {held_notes:1,note_off_serial:2});
+  await evaluate('machineLab.noteOff(60)');
+  assert.deepEqual(await evaluate('machineLab.getStatus().noteActivity'), {held_notes:1,note_off_serial:2});
+  await evaluate('machineLab.panic()');
+  assert.deepEqual(await evaluate('machineLab.getStatus().noteActivity'), {held_notes:0,note_off_serial:3});
+  await command('Emulation.setEmulatedMedia', {features:[]});
   for (const value of [1, 0.3, 0.301]) {
     await evaluate(`(() => { const el = document.getElementById(${JSON.stringify(firstId)}); el.value = ${value}; el.dispatchEvent(new Event('input')); })()`);
     assert.equal(await evaluate(`machineLab.getPatch().parameters[${JSON.stringify(first.id)}]`), value);

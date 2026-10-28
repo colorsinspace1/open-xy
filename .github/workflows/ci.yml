@@ -15,6 +15,7 @@ jobs:
   checks:
     # One Linux job: billing rounds every job up to a whole minute.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       OPEN_XY_KIT: ''
     steps:
@@ -47,10 +48,12 @@ jobs:
       - name: Source checks
         run: python sdk.py check
       - name: First machine
+        timeout-minutes: 5
         # The first-machine walkthrough end to end: scaffold, C++/Wasm preview,
         # stale-source rejection and the documented audible edit. No firmware.
         run: |
-          sudo apt-get update && sudo apt-get install -y clang lld
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y clang lld
           python tools/check_first_machine.py --cxx clang++
       - name: Web
         run: |
@@ -61,6 +64,7 @@ jobs:
     # Windows minutes bill double: release PRs, main and manual runs only.
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

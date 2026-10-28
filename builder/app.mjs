@@ -3,7 +3,7 @@ import * as Wizard from './wizard.mjs';
 import * as Retained from '../sdk/browser/display.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
-import {shownControls} from '../sdk/browser/controls.mjs';
+import {editedShown, shownControls} from '../sdk/browser/controls.mjs';
 import {supportsDeviceApis} from './browser.mjs';
 
 const $ = id => document.getElementById(id);
@@ -11,6 +11,7 @@ document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
 let acknowledged = false;
+let machinePreview = false, loadCollection;
 const browserAllowed = supportsDeviceApis();
 $('browser-blocked').hidden = browserAllowed;
 $('risk-acknowledgement').checked = false;
@@ -46,6 +47,12 @@ function invalidate() {
 }
 function navigate(step) {
   stopAudio();
+  if (machinePreview && step !== 2) {
+    machinePreview = false;
+    history.replaceState(null, '', location.pathname + location.search);
+    ready();
+    if (!acknowledged) { showEntryGate(); return; }
+  }
   wizard.navigate(step);
   document.querySelectorAll('[data-page]').forEach(p => p.hidden = Number(p.dataset.page) !== step);
   document.querySelectorAll('.steps button').forEach(b => {
@@ -56,8 +63,8 @@ function navigate(step) {
 }
 function ready() {
   $('choose').disabled = !(kit && stock);
-  document.querySelector('.steps [data-step="2"]').disabled = $('choose').disabled;
-  $('build').disabled = !(stock && linked);
+  document.querySelector('.steps [data-step="2"]').disabled = !(kit && (stock || machinePreview));
+  $('build').disabled = machinePreview || !(stock && linked);
 }
 
 const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built,
@@ -68,6 +75,8 @@ const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => select
   },
 });
 function showEntryGate() {
+  stopPreview();
+  ++previewRevision;
   wizard.navigate(1);
   $('browser-gate').hidden = browserAllowed;
   $('risk-gate').hidden = !browserAllowed;
@@ -76,20 +85,38 @@ function showEntryGate() {
   $('builder-workspace').inert = true;
 }
 function openPreviewLink() {
-  if (wizard.previewLink(location.hash)) {
+  const match = /^#preview\/machines(?:\/([a-z0-9_-]+))?$/.exec(location.hash);
+  const leavingMachines = machinePreview && !match;
+  machinePreview = !!match;
+  if (machinePreview || wizard.previewLink(location.hash)) {
     $('browser-gate').hidden = true;
     $('risk-gate').hidden = true;
     $('builder-workspace').hidden = false;
     $('builder-workspace').inert = false;
     if (!acknowledged) $('status').textContent = '';
-    navigate(wizard.previewPage());
+    if (machinePreview) {
+      loadCollection?.();
+      $('phase-nav').hidden = false;
+      navigate(2);
+      if (kit) {
+        inspect(kit.machines.find(m => m.id === match[1])?.id ?? kit.machines[0].id);
+        recalculate();
+      }
+    } else {
+      $('phase-nav').hidden = !acknowledged;
+      navigate(wizard.previewPage());
+    }
   } else if (!acknowledged) showEntryGate();
+  else if (leavingMachines) navigate(1);
+  if (machinePreview || leavingMachines) ready();
 }
 window.addEventListener('hashchange', openPreviewLink);
 openPreviewLink();
-// Keep the full builder paused while browsing preview links. Leaving a preview
-// returns to this unchecked notice instead of treating the preview as consent.
+// Machine previews may load the collection without acknowledging the notice.
+// Leaving a preview still returns to the gate; installing requires acknowledgement.
 await new Promise(resolve => {
+  loadCollection = resolve;
+  if (machinePreview) resolve();
   $('risk-acknowledgement').onchange = () => {
     $('risk-continue').disabled = !browserAllowed || !$('risk-acknowledgement').checked;
   };
@@ -126,7 +153,9 @@ async function acceptFirmware(file, isCurrent = () => true) {
       selected = recovered.selected; renderMachines(); recalculate();
       $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
-    } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
+    } else if (recovered.earlier) {
+      $('firmware-result').textContent = '✓ OP–XY OS 1.2.1 recovered from an earlier open-xy OS · choose your machines again';
+    } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.1 verified · ' + file.name;
     wizard.setFirmwareState('loaded');
     $('files-title').focus();
     status(); ready();
@@ -150,18 +179,48 @@ function node(tag, text, className) {
 function facts(target, values) {
   target.replaceChildren(...Object.entries(values).flatMap(([name, value]) => [node('dt', name), node('dd', value)]));
 }
+function sourceLinks(source) {
+  const link = (text, url) => {
+    const anchor = node('a', text);
+    anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
+    return anchor;
+  };
+  return ['Maintained by ', link('@' + source.maintainer, 'https://github.com/' + source.maintainer),
+    ' · ', link(Core.sourceName(source), source.repository),
+    ' · ', link('Source at ' + source.tag, Core.sourceUrl(source))];
+}
+function describeMachine(target, m) {
+  const field = name => target.querySelector('.' + name);
+  field('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
+  field('detail-name').textContent = m.name; field('detail-description').textContent = m.description;
+  field('community-notice').hidden = m.origin !== 'catalog';
+  // Credit the catalog's maintainer and repository, with the exact release source;
+  // Open-XY's own catalog machines (Core.ORIGINS) name the project instead.
+  if (m.origin === 'catalog') {
+    field('detail-source').replaceChildren(...sourceLinks(m.source));
+  } else if (m.origin === 'official') {
+    field('detail-source').replaceChildren('Open-XY machine', ...sourceLinks(m.source).slice(2));
+  } else field('detail-source').textContent = 'Your machine, from this kit';
+}
+function sizeMachineSummary() {
+  // Overlapping, inert copies let CSS reserve the tallest summary in this kit,
+  // including wrapped attribution and the notice, at any window or font size.
+  const summary = $('machine-summary');
+  for (const m of kit.machines) {
+    const sizing = summary.cloneNode(true);
+    sizing.removeAttribute('id');
+    sizing.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    sizing.classList.add('summary-sizing');
+    sizing.inert = true; sizing.setAttribute('aria-hidden', 'true');
+    describeMachine(sizing, m);
+    summary.parentElement.append(sizing);
+  }
+}
 async function inspect(id) {
   stopPreview();
   const ticket = ++previewRevision;
   inspected = id; const m = kit.machines.find(x => x.id === id);
-  $('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
-  $('detail-name').textContent = m.name; $('detail-description').textContent = m.description;
-  // Who makes it and where its code lives: a catalog machine links to its pinned commit.
-  if (m.origin === 'catalog') {
-    const link = node('a', Core.sourceName(m.source) + ' ' + m.source.tag);
-    link.href = Core.sourceUrl(m.source); link.target = '_blank'; link.rel = 'noopener noreferrer';
-    $('detail-source').replaceChildren('Community machine by ' + m.source.maintainer + ' · ', link);
-  } else $('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
+  describeMachine($('machine-summary'), m);
   $('art-preview').replaceChildren();
   $('audition-controls').replaceChildren();
   stopAudio = () => {};
@@ -178,7 +237,7 @@ async function inspect(id) {
     // The numbers this selection gives it, or those it asks for.
     ...(own => ({[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine, 'Page': own.page}))(
       linked?.numbers?.[m.id] ?? m.identity),
-    ...(m.origin === 'catalog' ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
+    ...(m.source ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
   document.querySelectorAll('.machine button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   if (m.preview) {
     try {
@@ -192,12 +251,14 @@ async function inspect(id) {
       const renderer = new Retained.SvgDisplay(m.artwork, m.preview.graphics);
       const ns = 'http://www.w3.org/2000/svg', canvas = document.createElementNS(ns, 'svg');
       canvas.setAttribute('viewBox', '0 0 480 220'); canvas.setAttribute('aria-label', m.name + ' display preview');
-      // The device page: the machine's drawing under the stock four-control header.
+      // The device page: the stock four-control header under the machine's drawing,
+      // which can cover it, as on the device.
       const header = document.createElementNS(ns, 'g');
-      canvas.append(renderer.root, header); $('art-preview').replaceChildren(canvas);
+      canvas.append(header, renderer.root); $('art-preview').replaceChildren(canvas);
       // Eight parameter words; each control position shows the parameter last edited there.
       const parameters = Object.assign(Array(8).fill(0), m.preview.defaults), shown = [0, 1, 2, 3];
       let serial = 0, previous = 0, handle, cancelled = false;
+      const noteActivity = new Retained.NoteActivity();
       // A small keyboard from middle C: a key plays its note while held. The preview plays
       // one note at a time, the newest held key; letting it go returns to the one before.
       const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'], held = [];
@@ -209,17 +270,15 @@ async function inspect(id) {
         key.type = 'button'; key.setAttribute('aria-label', name);
         const press = () => {
           if (key.dataset.down === 'true') return;
-          key.dataset.down = 'true'; held.push(note);
-          display.setActivity(held.length); trigger(); audio?.play(note);
+          key.dataset.down = 'true'; held.push(note); noteActivity.noteOn(note); display.setActivity(held.length); trigger(); audio?.play(note);
         };
         const lift = () => {
           if (key.dataset.down !== 'true') return;
           key.dataset.down = 'false';
           const sounding = held.at(-1) === note;
           held.splice(held.indexOf(note), 1);
-          display.setActivity(held.length);
+          noteActivity.noteOff(note); display.setActivity(held.length); frame(0);
           if (sounding && held.length) audio?.play(held.at(-1)); else audio?.release(note);
-          frame(0);
         };
         key.onpointerdown = e => { e.preventDefault(); key.setPointerCapture(e.pointerId); key.focus(); press(); };
         key.onpointerup = key.onpointercancel = key.onlostpointercapture = lift;
@@ -236,7 +295,11 @@ async function inspect(id) {
         if (error && ticket === previewRevision) $('art-caption').textContent = 'Audio unavailable: ' + error;
       }) : null;
       volume.hidden = !hasAudio;
-      stopAudio = () => { audio?.stop(); held.length = 0; display.setActivity(0); for (const key of keyboard.children) key.dataset.down = 'false'; if (!cancelled) frame(0); };
+      stopAudio = () => {
+        held.length = 0;
+        for (const key of keyboard.children) key.dataset.down = 'false';
+        noteActivity.panic(); display.setActivity(0); if (!cancelled) frame(0); audio?.stop();
+      };
       level.oninput = () => audio?.setVolume(Number(level.value) / 100);
       $('audition-controls').append(keyboard, volume);
       $('audition-controls').setAttribute('aria-label', hasAudio ? 'Sound preview' : 'Display preview');
@@ -244,17 +307,20 @@ async function inspect(id) {
       function frame(dt = 34) {
         const input = shownControls(parameters, shown);
         // The preview is one track: a changing track would tell the machine to start over.
-        renderer.apply(display.tick(input, dt, serial, 0, reduced.matches));
+        renderer.apply(display.tick(input, dt, serial, 0, reduced.matches, noteActivity));
         // The machine's header text, or the stock percentage of the shown parameter.
         header.innerHTML = Retained.headerSvg(shown.map(slot => m.controls[slot].toLowerCase()),
           shown.map((slot, i) => renderer.header[i] || String(Math.round(parameters[slot] / 0x7fffffff * 100))));
       }
       const controls = m.controls.map((name, i) => {
-        const label = node('label', name, 'preview-control'), input = node('input');
+        const label = node('label', undefined, 'preview-control'), input = node('input');
+        label.title = name;
+        label.append(node('span', name));
         input.type = 'range'; input.min = '0'; input.max = '1000'; input.step = '1';
         input.value = String(parameters[i] / 0x7fffffff * 1000); input.setAttribute('aria-label', name + ' preview');
         input.oninput = () => {
-          parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff); shown[m.positions[i]] = i;
+          parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff);
+          shown.splice(0, 4, ...editedShown(shown, m.positions, i, m.pages));
           frame(0); audio?.setParameters(parameters);
         };
         label.append(input); return label;
@@ -281,9 +347,14 @@ async function inspect(id) {
 function renderMachines(filter = 'all') {
   $('machines').style.setProperty('--machine-count', kit.machines.length);
   $('machines').replaceChildren();
-  kit.machines.forEach((m, index) => {
+  const priority = m => m.origin === 'bundled' || m.origin === 'official' ? 0 : 1;
+  // Preserve collection order within each group and the memory-map color indexes.
+  const rows = kit.machines.map((m, index) => ({m, index}))
+    .sort((a, b) => priority(a.m) - priority(b.m));
+  rows.forEach(({m, index}) => {
     if (filter !== 'all' && m.kind !== filter) return;
     const row = node('article', undefined, 'machine' + (selected.includes(m.id) ? ' selected' : ''));
+    row.dataset.origin = m.origin;
     row.style.setProperty('--machine', colors[index % colors.length]);
     const label = node('label'), input = node('input'); input.type = 'checkbox'; input.checked = selected.includes(m.id);
     input.setAttribute('aria-label', 'Include ' + m.name); label.append(input);
@@ -296,7 +367,8 @@ function renderMachines(filter = 'all') {
     const memory = node('span', kib(ownBytes), 'machine-memory');
     memory.title = 'Code, data and working memory. Shared code is counted separately below.';
     meta.append(memory);
-    if (m.origin !== 'bundled') meta.append(node('span', m.origin === 'catalog' ? 'Community' : 'Yours', 'machine-origin'));
+    const originLabel = {bundled: 'Core', official: 'Core', catalog: 'Community', personal: 'Yours'}[m.origin];
+    meta.append(node('span', originLabel, 'machine-origin'));
     button.append(meta); button.onclick = () => inspect(m.id);
     input.onchange = () => {
       selected = input.checked ? [...selected, m.id] : selected.filter(id => id !== m.id);
@@ -333,11 +405,12 @@ function recalculate() {
   ready();
 }
 async function build() {
+  if (machinePreview || !acknowledged) return;
   const ticket = revision; $('build').disabled = true; status('Linking and checking your build…');
   try {
     const selection = [...selected], result = Core.linkKit(kit, selection, numbers);
     const files = await Core.buildAssets(kit, selection, catalog, result.numbers);
-    files['os.ldr'] = await Core.patchFirmware(kit, result, stock);
+    files['os.ldr'] = await Core.patchFirmware(kit, result, stock, {profiling: false});
     const hashes = {};
     for (const [name, bytes] of Object.entries(files)) hashes[name] = await Core.sha256(bytes);
     // Every number this firmware has given out, for the next build (Core.readLayout).
@@ -392,7 +465,7 @@ try {
   // A tap opens the memory breakdown on screens without hover.
   document.querySelector('.memory-bar').onclick = e => e.currentTarget.classList.toggle('open');
   $('builder-version').textContent = 'v' + kit.version;
-  selected = kit.machines.map(machine => machine.id);
+  selected = kit.machines.filter(Core.chosenByDefault).map(machine => machine.id);
   try {
     const remembered = JSON.parse(localStorage.getItem(NUMBERS_KEY) ?? 'null');
     if (remembered) numbers = Core.readLayout(kit, {format: 'opxy-layout/1', ...remembered}).machines;
@@ -400,6 +473,6 @@ try {
   catalog = Core.decode64(kit.stockCatalog);
   $('notices').textContent = kit.notices;
   $('notices').closest('details').hidden = false;
-  renderMachines(); inspect(kit.machines[0].id); recalculate();
+  sizeMachineSummary(); renderMachines(); inspect(kit.machines[0].id); recalculate();
 } catch (error) { fail(error); }
 openPreviewLink();

@@ -77,6 +77,24 @@ class PackageVerification(unittest.TestCase):
         self.assertTrue(result['fresh_source_rebuild_matches'])
         self.assertFalse(result['hardware_tested'])
 
+    def test_profiling_mode_is_part_of_verified_provenance(self):
+        path = self.copy / 'manifest.json'
+        manifest = document(path)
+        original = manifest['profiling']
+        for value in (not original, None, 0, 1, 'off'):
+            with self.subTest(profiling=value):
+                manifest['profiling'] = value
+                save_json(path, manifest)
+                with self.assertRaises(ValueError):
+                    self.verify()
+
+    def test_profiling_hooks_match_mode_and_stay_in_platform_unit(self):
+        symbols, _undefined = object_symbols(read(self.package / 'analysis/sdk/profiling.o'))
+        for edit in self.report['patches']:
+            if edit.get('profiling') is False:
+                self.assertIn(edit['symbol'], symbols)
+                self.assertEqual(edit['after'] == edit['before'], self.report['profiling'])
+
     def test_service_hooks_live_in_their_units_and_only_their_users_reach_them(self):
         services = native.object_services(self.machines)
         kinds = {m.id: m.kind for m in self.machines}

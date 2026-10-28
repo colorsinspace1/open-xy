@@ -9,7 +9,7 @@ from xml.etree.ElementTree import ParseError
 
 from .formats import require, sha
 from .definitions import ROOT
-from .machines import machine, machine_at
+from .machines import machine_at
 from .pipeline import NO_WINDOW, fresh_output
 
 
@@ -27,7 +27,9 @@ SDK_FOLDERS = ('sdk/include', 'sdk/browser', 'sdk/platform/blackfin/freestanding
 FLAGS = ['--target=wasm32', '-std=c++11', '-O2', '-ffreestanding', '-fno-exceptions', '-fno-rtti',
          '-fno-threadsafe-statics', '-fno-use-cxa-atexit', '-fno-c++-static-destructors', '-nostdlib',
          '-Wall', '-Werror', '-Wno-unused']
-MEMORY = 524288
+# Fixed browser allowance for code/data/state; no memory growth during audio.
+# Native collections have a separate 2040 KiB linker limit.
+MEMORY = 2 * 1024 * 1024
 
 
 def compile_preview(compiler, definition, out, root, sources=(), includes=(), machine=None):
@@ -51,12 +53,13 @@ def compile_preview(compiler, definition, out, root, sources=(), includes=(), ma
                             creationflags=NO_WINDOW)
     require(result.returncode == 0, 'Preview compilation failed:\n' + result.stderr +
             f'\nCheck the compiler with: python sdk.py doctor --preview --cxx "{compiler}"')
-    check_runtime(out / 'engine.wasm')
+    display = definition.get('resources', {}).get('display', {})
+    check_runtime(out / 'engine.wasm', display.get('paths', 0), display.get('points', 0))
 
 
-def check_runtime(module):
+def check_runtime(module, paths=0, points=0):
     """Smoke-test host contracts without requiring a particular sound."""
-    result = subprocess.run(['node', str(ROOT / 'tools/check_preview_contract.mjs'), str(module)],
+    result = subprocess.run(['node', str(ROOT / 'tools/check_preview_contract.mjs'), str(module), str(paths), str(points)],
                             capture_output=True, text=True, timeout=120,
                             creationflags=NO_WINDOW)
     require(result.returncode == 0, 'Preview contract check failed:\n' + result.stdout + result.stderr)
@@ -105,7 +108,7 @@ def build(compiler, m, out):
     require(source_hashes(m) == before, 'Source changed during preview build')
     version = subprocess.check_output([str(compiler), '--version'], text=True, timeout=30,
                                       creationflags=NO_WINDOW).splitlines()[0]
-    manifest = dict(schema=1, kind='cpp-browser-preview', engine=m.id, root=None if m.bundled else str(m.root),
+    manifest = dict(schema=1, kind='cpp-browser-preview', engine=m.id, root=str(m.root),
                     description=m.description,
                     definition=m.definition, sample_rate=44100,
                     wasm_sha256=sha((out / 'engine.wasm').read_bytes()), sources=before,
@@ -139,8 +142,8 @@ def preview_bundle(directory, *, require_reference=False):
             manifest['kind'] == 'cpp-browser-preview' and type(manifest['sample_rate']) is int and
             manifest['sample_rate'] == 44100, 'Unsupported preview contract')
     root = manifest['root']
-    require(root is None or isinstance(root, str) and Path(root).is_absolute(), 'Invalid machine folder in preview')
-    m = machine(manifest['engine']) if root is None else machine_at(root)
+    require(isinstance(root, str) and Path(root).is_absolute(), 'Invalid machine folder in preview')
+    m = machine_at(root)
     require(m.id == manifest['engine'] and m.kind in ('synth', 'sample') and m.display != 'stock',
             'Browser previews need an authored drawing display')
     require(manifest['sources'] == source_hashes(m), 'Preview is stale; rebuild from current source')
@@ -163,7 +166,6 @@ def main(argv=None):
     parser.add_argument('--cxx', default='clang++')
     parser.add_argument('--out', required=True, type=Path)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument('--engine', help='Bundled instrument with an authored display')
     source.add_argument('--machine', type=Path, help='Instrument folder with an authored display')
     source.add_argument('--source', type=Path, help='Local custom-machine directory')
     args = parser.parse_args(argv)
@@ -172,7 +174,7 @@ def main(argv=None):
             from .custom_preview import build as build_custom
             build_custom(args.cxx, args.source, args.out)
         else:
-            build(args.cxx, machine_at(args.machine) if args.machine else machine(args.engine), args.out)
+            build(args.cxx, machine_at(args.machine), args.out)
         return 0
     except (ValueError, OSError, ParseError, subprocess.SubprocessError) as error:
         print('FAIL: ' + str(error), file=sys.stderr)

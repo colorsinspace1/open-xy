@@ -1,9 +1,11 @@
 // SDK ABI fixture: drive the generated synth voice adapter as stock does, with
 // a machine of two voices and every stock voice index 0..255.
 #include "voice.cpp"
+#include <cstring>
 
 int destroyed[257];
-opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index; }
+// Every encoder shows an alternate. Record names must still identify raw slots.
+opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 
 namespace {
 typedef int (*Method)(void*);
@@ -28,6 +30,10 @@ void end(unsigned index) { call(index, 0); }
 }
 
 int main() {
+    const char* labels[] = {"shape", "width", "level", "motion", "extra 0", "extra 1", "extra 2", "extra 3"};
+    for (unsigned i = 0; i < 8; ++i)
+        if (std::strcmp(probe_parameter_name(i), labels[i])) return 11;
+    if (*probe_parameter_name(8) || *probe_parameter_name(0xffffffffu)) return 12;
     // Every stock index gets an object; none past the last.
     for (unsigned i = 0; i < 256; ++i)
         if (!(handle[i] = probe_factory(i))) return 1;

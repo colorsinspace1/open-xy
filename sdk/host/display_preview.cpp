@@ -17,7 +17,7 @@ opxy::binding::Frame frame;
 }
 extern "C" {
 void opxy_display_activity(opxy::u32 notes) { preview_activity = notes <= 128 ? notes : 0; }
-opxy::u32 opxy_display_abi() { return 1; }
+opxy::u32 opxy_display_abi() { return 2; }
 opxy::u32 opxy_display_state_bytes() { return sizeof(state); }
 opxy::u32 opxy_display_input_bytes() { return sizeof(input); }
 opxy::u32 opxy_display_frame_bytes() { return sizeof(frame); }
