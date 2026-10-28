@@ -66,7 +66,7 @@ class SynthVoices(unittest.TestCase):
             binary = folder / ('test.exe' if os.name == 'nt' else 'test')
             hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
             command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-Wno-unused-function',
-                       *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.0', folder)),
+                       *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.1', folder)),
                        str(folder / 'test.cpp'), '-o', str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=120, **hidden)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

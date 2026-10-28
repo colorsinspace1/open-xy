@@ -82,7 +82,7 @@ class Measurements(unittest.TestCase):
             # The evidence link is optional.
             unlinked = dict(entry['cpu']); del unlinked['report']
             catalog.validate(document(dict(entry, cpu=unlinked)))
-            for change in ({'commit': 'b'*40}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
+            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
                            {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}):
@@ -98,8 +98,20 @@ class Measurements(unittest.TestCase):
                     catalog.changes(before, after)
             measured = dict(entry, cpu=measurement(kind))
             catalog.changes([entry], [measured])
-            with self.assertRaisesRegex(ValueError, 'catalog commit'):
-                catalog.changes([measured], [dict(measured, commit='b'*40)])
+            # An update remeasures, unless a catalog maintainer lets it carry its previous
+            # measurement over unchanged, naming the commit it measured.
+            carried = dict(measured, tag='v2', commit='b'*40)
+            with self.assertRaisesRegex(ValueError, 'remeasure when updating'):
+                catalog.changes([measured], [carried])
+            catalog.changes([measured], [carried], allow_carried_cpu=True)
+            catalog.changes([measured], [dict(carried, cpu=measurement(kind, commit='b'*40))])
+            for before, after in (
+                    ([], [dict(entry, cpu=measurement(kind, commit='b'*40))]),
+                    ([entry], [dict(entry, cpu=measurement(kind, commit='b'*40))]),
+                    ([measured], [dict(measured, commit='b'*40, cpu=dict(measured['cpu'], block_percent=1.5))]),
+                    ([measured], [dict(measured, commit='b'*40, cpu=measurement(kind, commit='c'*40))])):
+                with self.subTest(kind=kind, after=after), self.assertRaisesRegex(ValueError, 'pinned commit'):
+                    catalog.changes(before, after, allow_carried_cpu=True)
             catalog.changes([entry], [dict(entry, status='retired')])
 
     def test_report_rejects_repeated_wrong_build_incomplete_or_inactive_runs(self):

@@ -8,7 +8,7 @@ user's firmware, can open the project with the right machines. Sections let
 other firmware features keep their own data in the same file.
 
 Open-XY firmware writes a companion after every project save, listing its
-machines; it does not read them yet ([firmware](abi-1.2.0.md#project-companions)).
+machines; it does not read them yet ([firmware](abi-1.2.1.md#project-companions)).
 [`tooling/projects.py`](../tooling/projects.py) is the reference reader and
 writer.
 
@@ -46,7 +46,7 @@ saved, as it would without a companion.
           "page": 21
         }
       },
-      "profile": "opxy-1.2.0",
+      "profile": "opxy-1.2.1",
       "version": 1
     }
   },

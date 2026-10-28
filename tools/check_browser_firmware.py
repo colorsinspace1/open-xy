@@ -45,9 +45,9 @@ def main():
     definitions = {m.id: m.definition for m in configuration(package_collection(directory / 'source'))[1]}
     stock = stock_file.read_bytes()
     require(sha(stock) == kit['profile']['stock_sha256'], 'Unexpected stock input')
-    # 0x8c0c88bc measures the text using this stock width table, adding
+    # 0x8c0c7d04 measures the text using this stock width table, adding
     # one pixel per glyph. The existing draw call centers it at x=240.
-    offset = mapped_offset(ldr(stock), 0x840131c4, 96)
+    offset = mapped_offset(ldr(stock), 0x84015fb4, 96)
     widths = stock[offset:offset + 96]
     boot_label = startup_label.label(kit['version'])
     label = boot_label[:-1]
@@ -63,8 +63,8 @@ def main():
     source_suffix = '.ldr' if source_profiling else '.profiling-off.ldr'
     require(everything.with_suffix(source_suffix).read_bytes() == (directory / 'source/candidate/os.ldr').read_bytes(),
             'Browser firmware for the full collection differs from the native package')
-    for index, result in enumerate(json.loads((directory / 'reference/selections.json').read_text()), 1):
-        prefix = directory / 'reference' / str(index)
+    for result in json.loads((directory / 'reference/selections.json').read_text()):
+        prefix = directory / 'reference' / str(result['mask'])
         sections, symbols = elf32(prefix.with_suffix('.elf').read_bytes())
         module = prefix.with_suffix('.bin').read_bytes()
         require(sha(module) == result['module_sha256'], 'GNU module digest differs')
@@ -140,7 +140,7 @@ def main():
             require(set(archive.namelist()) == set(expected_files) and archive.testzip() is None, 'Invalid ZIP file')
             for name, data in expected_files.items():
                 require(archive.read(name) == data, 'ZIP payload differs')
-    print('Independent GNU/Python verification passed for every selection (module, symbols, BSS, LDR, assets, ZIP).')
+    print('Independent GNU/Python verification passed for the checked selections (module, symbols, BSS, LDR, assets, ZIP).')
 
 
 if __name__ == '__main__':

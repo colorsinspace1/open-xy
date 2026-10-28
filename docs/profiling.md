@@ -18,7 +18,7 @@ below, `<private>` is that external folder and `<machine>` is your machine folde
 
 ```sh
 python -m pip install python-rtmidi
-python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.0/os.ldr --out <private>/cpu-build-001
+python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.1/os.ldr --out <private>/cpu-build-001
 ```
 
 Repeat `--machine` or use `--collection` to build a batch. Keep the package:
@@ -46,7 +46,7 @@ python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --
 ```
 
 `--installed` confirms that this exact package is on the device and your work is
-saved. Metadata identifies normal OS 1.2.0 but does not attest the installed image
+saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
 hash. The collector checks CRCs, endpoint, packet size, and the complete ordered
 report count before assigning results to machines. A missing or failed
 registration cannot silently shift the reported names. Do not operate the
@@ -84,15 +84,16 @@ firmware-containing packages.
 | `cpu` field | Meaning |
 | --- | --- |
 | `benchmark` | Versioned workload from the table below; must match the machine kind |
-| `commit` | Full machine source SHA, equal to the catalog entry's `commit` |
+| `commit` | Full machine source SHA, equal to the catalog entry's `commit` (or an earlier release's, when a maintainer approves carrying it over) |
 | `firmware_sha256` | Exact tested candidate OS image |
 | `runs` | 3 to 100 independent, complete captures of the same build and collector |
 | `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget |
 | `report` | Optional: public HTTPS evidence URL containing the generated readout |
 
-Updating a machine's commit requires a new measurement. CI rejects stale results,
-host estimates, non-finite/zero/saturated values and missing records on changed
-submissions. Retiring an entry does not require a new run. Validate your submission:
+Updating a machine's commit requires a new measurement, unless a catalog
+maintainer approves keeping the previous one ([catalog updates](catalog.md#submit-a-machine)).
+CI rejects stale results, host estimates, non-finite/zero/saturated values and
+missing records on changed submissions. Retiring an entry does not require a new run. Validate your submission:
 
 ```sh
 python sdk.py catalog check --base origin/staging

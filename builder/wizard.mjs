@@ -13,12 +13,12 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
   // can continue there; `resumed` marks an install guide that started there.
   let inTransfer = false, resumed = false, transferComputer = null, sourceReadDirectly = false;
-  let computer = null, busy = false;
+  let computer = null, busy = false, versionChecked = false;  // versionChecked: the user confirmed OS 1.2.1
   let hostPage = 1;
   let previewMode = false, previousComputer = null;
   const previewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit',
     'transfer', 'exit-transfer', 'write-os', 'write-result', 'write-help', 'restart']);
-  const sourcePreviewStages = new Set(['version', 'boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit', 'transfer', 'missing-os']);
+  const sourcePreviewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit', 'transfer', 'missing-os']);
   // Installing from this page: the chosen device, progress through the build,
   // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
   let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
@@ -70,8 +70,6 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         'Leave your OP–XY in file transfer mode. Installing continues from here.');
     }
     return {
-      version: ['Is your OP–XY on OS 1.2.0?', 'open-xy supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
-      'version-help': ['Install OS 1.2.0 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.0 on your OP–XY, then come back. open-xy can’t work from any other version.', [action('It’s on 1.2.0 now', 'boot', 'version-done')]],
       boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file, os.ldr, is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
         'Power off your OP–XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
@@ -84,23 +82,23 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       'refresh-return': ['Return to te-boot.', 'Press track 8 for "8. back" to refresh the te-boot menu.', [action('I’m back at te-boot', 'confirm')]],
       confirm: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
       'menu-help': ['The dev menu is still missing.', 'Keep your OP–XY at te-boot and retry enabling it, or use Connection help below.', [action(busy ? 'Enabling…' : 'Retry enabling dev menu', null, 'dev-enable'), action('Refresh the screen again', 'refresh-open')]],
-      disabled: recovering ? ['Power cycle and reinstall OS 1.2.0.',
-        'The disable command was sent. Reinstall the official OS 1.2.0, even if your OP–XY already reports that version.',
-        [action('1.2.0 reinstalled · Try again', null, 'recovery-retry')],
+      disabled: recovering ? ['Power cycle and reinstall OS 1.2.1.',
+        'The disable command was sent. Reinstall the official OS 1.2.1, even if your OP–XY already reports that version.',
+        [action('1.2.1 reinstalled · Try again', null, 'recovery-retry')],
         ['Switch your OP–XY off, then hold COM while switching it back on.',
           'Check that “3. dev menu” is gone. If it is still visible, use Disable dev menu again below before installing.',
-          'Download OS 1.2.0 below. Press track 1 for “upload firmware”, then copy the .tfw file to the removable disk and safely eject it.',
+          'Download OS 1.2.1 below. Press track 1 for “upload firmware”, then copy the .tfw file to the removable disk and safely eject it.',
           'Wait for the update to finish before returning here. We’ll guide you through enabling the dev menu again to retrieve os.ldr.']]
         : ['Power cycle to finish.', 'The disable command was sent. It does not uninstall your machines or restore the original OS.',
           [action('Dev menu is gone · Done', 'exit'), action(busy ? 'Disabling…' : 'Still visible · Disable again', null, 'dev-disable')],
           ['Switch off, then hold COM while switching on to check that “3. dev menu” is gone.',
             'Once it is gone, restart without holding COM to use your OP–XY.']],
       'missing-os': ['Restore the missing OS file.',
-        'A factory reset or initialization can occasionally remove the original os.ldr. Reinstalling OS 1.2.0 with the dev menu disabled restores the file.',
+        'A factory reset or initialization can occasionally remove the original os.ldr. Reinstalling OS 1.2.1 with the dev menu disabled restores the file.',
         [action(busy ? 'Disabling…' : 'Disable dev menu', null, 'recovery-disable')],
         ['Wait for any transfer to finish. Close ' + (computer === 'mac' ? 'Field Kit, OpenMTP and Android File Transfer.' : 'any File Explorer windows showing your OP–XY.'),
           'Press track 2 for “2. exit” to leave file transfer mode. Keep USB connected.',
-          'Select Disable dev menu and allow MIDI access if prompted. Then we’ll show you how to power cycle and reinstall OS 1.2.0.']],
+          'Select Disable dev menu and allow MIDI access if prompted. Then we’ll show you how to power cycle and reinstall OS 1.2.1.']],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". Your OP–XY calls this screen "factory menu".', [action('Dev menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', sendsDirectly() ? 'close-field-kit' : 'transfer')]],
@@ -205,14 +203,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     previousComputer = computer;
     previewMode = !!preview;
     if (preview) { computer = preview.computer; manual = downloaded = false; }
-    $('computer-choice').hidden = true;
+    $('os-version').hidden = $('os-update').hidden = $('computer-choice').hidden = true;
     if (hostPage === 1) $('source-start').hidden = $('file-panel').hidden = $('file-actions').hidden = true;
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
     // Resume only in the transfer mode the device is already in.
     resumed = !previewMode && purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
-    advance(preview?.stage ?? (purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() && !sourceReadDirectly ? 'close-field-kit' : 'transfer'));
+    advance(preview?.stage ?? (!resumed ? 'boot' : sendsDirectly() && !sourceReadDirectly ? 'close-field-kit' : 'transfer'));
   }
   function exit(focus = true) {
     const previous = purpose, wasPreview = previewMode;
@@ -222,7 +220,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     busy = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
-    if (previous && (hostPage === 1 || wasPreview)) { $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer; }
+    if (previous && (hostPage === 1 || wasPreview)) {
+      $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer || !versionChecked;
+      $('os-version').hidden = !!computer || versionChecked;
+    }
     if (focus && wasPreview) { onPreviewExit(); return; }
     if (focus && previous) {
       $(hostPage === 1 ? 'source-title' : 'download-title').focus();
@@ -379,7 +380,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       if (ticket !== revision) return;
       note('Checking the original OS…');
       if (bytes.length !== total || await sha256(bytes) !== kit.profile.stock_sha256)
-        throw new Error('This is not the supported original OP–XY OS 1.2.0. It has not been loaded.');
+        throw new Error('This is not the supported original OP–XY OS 1.2.1. It has not been loaded.');
       if (ticket !== revision) return;
       file = new File([bytes], 'os.ldr', {type: 'application/octet-stream'});
     } catch (error) {
@@ -442,6 +443,15 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     $('computer-choice').hidden = true; $('source-start').hidden = false;
     $('source-title').focus(); Visuals.reveal($('source-start'));
   };
+  // The version question comes before everything that reads or loads an OS.
+  const showScreen = (from, to, title) => {
+    $(from).hidden = true; $(to).hidden = false;
+    $(title).focus(); Visuals.reveal($(to));
+  };
+  $('os-version-yes').onclick = () => { versionChecked = true; showScreen('os-version', 'computer-choice', 'computer-title'); };
+  $('os-version-no').onclick = () => showScreen('os-version', 'os-update', 'os-update-title');
+  $('os-update-done').onclick = () => { versionChecked = true; showScreen('os-update', 'computer-choice', 'computer-title'); };
+  $('os-update-back').onclick = () => showScreen('os-update', 'os-version', 'os-version-title');
   $('source-computer-change').onclick = () => {
     $('source-start').hidden = true; $('computer-choice').hidden = false;
     $('computer-title').focus(); Visuals.reveal($('computer-choice'));

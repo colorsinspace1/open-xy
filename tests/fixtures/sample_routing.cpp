@@ -22,14 +22,14 @@ static unsigned pitch_kind(unsigned) { return 9; }
 static unsigned stock_region(unsigned, unsigned, const unsigned*, unsigned) { ++regions; return 91; }
 extern "C" unsigned sdk_sample_edit(void*, unsigned, int, unsigned) { std::abort(); }
 extern "C" unsigned sdk_synth_turn(unsigned project, unsigned track, unsigned slot, unsigned event) {
-    check(project == 0x86bd9f38 && track == 0 && slot < 8 && !event); ++turns; return 73;
+    check(project == 0x86bd027c && track == 0 && slot < 8 && !event); ++turns; return 73;
 }
 Address opxy::platform::host_stock_address(Address address) {
-    if (address == 0x8d585eb4) return reinterpret_cast<Address>(&engine);
-    if (address == 0x8d5b5b38) return reinterpret_cast<Address>(&predicate);
-    if (address == 0x8d5b5b68) return reinterpret_cast<Address>(&pitch_kind);
+    if (address == 0x8d58781c) return reinterpret_cast<Address>(&engine);
+    if (address == 0x8d5b79c0) return reinterpret_cast<Address>(&predicate);
+    if (address == 0x8d5b79f0) return reinterpret_cast<Address>(&pitch_kind);
     if (address == kSelectedTrack) return reinterpret_cast<Address>(&selected_track_byte);
-    if (address == 0x8d4dcab8) return reinterpret_cast<Address>(&stock_region);
+    if (address == 0x8d4dccd8) return reinterpret_cast<Address>(&stock_region);
     std::abort();
 }
 int main() {

@@ -36,7 +36,7 @@ class SamplePages(unittest.TestCase):
         with patch.object(catalog, 'fetch', side_effect=[first, second]):
             self.assertIn('sample assignment mode', catalog.release_controls([old], [new], allow=True)[0])
 
-    def test_capabilities_validate_independently_and_require_11(self):
+    def test_capabilities_validate_independently_and_require_15(self):
         m = drawing_sample()
         for single in (0, 1):
             definition = copy.deepcopy(m.definition)
@@ -53,14 +53,14 @@ class SamplePages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'definition.json').write_text(json.dumps(m.definition))
-            record = dict(schema=1, sdk='1.3', kind='sample', description='Sample capability fixture', identity=m.identity)
+            record = dict(schema=1, sdk='1.5', kind='sample', description='Sample capability fixture', identity=m.identity)
             def load():
                 (root / 'machine.json').write_text(json.dumps(record))
                 return machine_at(root)
             self.assertEqual(load().display, 'drawing')
-            record['sdk'] = '1.2'
-            with self.assertRaisesRegex(ValueError, '1.3'): load()
-            record['sdk'] = '1.3'
+            record['sdk'] = '1.4'
+            with self.assertRaisesRegex(ValueError, '1.5'): load()
+            record['sdk'] = '1.5'
             record['identity']['page'] = 7
             with self.assertRaises(ValueError): load()
 
@@ -95,7 +95,7 @@ class SamplePages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'definition.json').write_text(json.dumps(definition))
-            record = dict(schema=1, sdk='1.3', kind='sample', description='Single sample fixture',
+            record = dict(schema=1, sdk='1.5', kind='sample', description='Single sample fixture',
                           identity=dict(engine=44, page=2))
             (root / 'machine.json').write_text(json.dumps(record))
             self.assertEqual(machine_at(root).display, 'stock')

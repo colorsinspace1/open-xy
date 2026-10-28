@@ -104,3 +104,17 @@ test('an edit shows its parameter at its position, or its whole page on a paged 
   assert.deepEqual(editedShown([0, 1, 2, 3], positions, 6, true), [5, 6, 7, 4]);
   assert.deepEqual(editedShown([5, 6, 7, 4], positions, 1, true), [0, 1, 2, 3]);
 });
+
+test('partial second pages repeat the same saved controls without switching pages on a turn', () => {
+  // Six controls like Solar: the second and fourth columns are shared.
+  const solar = [0, 1, 2, 3, 0, 2];
+  assert.deepEqual(editedShown([0, 1, 2, 3], solar, 5, true), [4, 1, 5, 3]);
+  assert.deepEqual(editedShown([4, 1, 5, 3], solar, 1, true), [4, 1, 5, 3]);
+  assert.deepEqual(editedShown([4, 1, 5, 3], solar, 3, true), [4, 1, 5, 3]);
+  assert.deepEqual(editedShown([4, 1, 5, 3], solar, 2, true), [0, 1, 2, 3]);
+  // Seven controls like Drone: even the first column can be shared.
+  const drone = [0, 1, 2, 3, 1, 2, 3];
+  assert.deepEqual(editedShown([0, 1, 2, 3], drone, 4, true), [0, 4, 5, 6]);
+  assert.deepEqual(editedShown([0, 4, 5, 6], drone, 0, true), [0, 4, 5, 6]);
+  assert.deepEqual(editedShown([0, 4, 5, 6], drone, 3, true), [0, 1, 2, 3]);
+});

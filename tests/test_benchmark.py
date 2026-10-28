@@ -39,7 +39,7 @@ class Benchmark(unittest.TestCase):
     def test_hook_replaces_only_the_explicit_diagnostic_runner(self):
         patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_benchmark_run')
         self.assertEqual(decode_branch(int(patch['address'], 16), bytes.fromhex(patch['before'])),
-                         (0x8d57bc64, True))
+                         (0x8d57cbbc, True))
         self.assertEqual(patch['length'], 4)
 
     def test_reports_refuse_missing_extra_corrupt_or_wrong_endpoint_data(self):
@@ -90,7 +90,7 @@ opxy::PadSettings {machine.prefix}_sample_assign(const opxy::SampleAssignment* i
                 binary = folder / ('test.exe' if os.name == 'nt' else 'test')
                 command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-Wno-unused-variable',
                            '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
-                           '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'),
+                           '-I' + str(ROOT / 'sdk/platform/opxy-1.2.1'),
                            '-DBENCHMARK=' + name + '_benchmark',
                            *(['-DSAMPLE_BENCHMARK'] if machine.kind == 'sample' else []),
                            str(ROOT / 'tests/fixtures/benchmark_callbacks.cpp'), '-o', str(binary)]

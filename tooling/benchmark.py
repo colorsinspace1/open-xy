@@ -31,7 +31,7 @@ def generate(directory, machines):
             callback = p + '_benchmark'
             declarations.append(f'opxy::benchmark::Stats {callback}() __asm__("{callback}");')
         rows.append(f'    {{"{m.id}", {id_symbol}, {p}_ready, {callback}, {METHODS[m.kind][1]}}},')
-    source = (ROOT / 'sdk/platform/opxy-1.2.0/benchmark.cpp.in').read_text(encoding='utf-8')
+    source = (ROOT / 'sdk/platform/opxy-1.2.1/benchmark.cpp.in').read_text(encoding='utf-8')
     source = source.replace('@DECLARATIONS@', '\n'.join(declarations))
     source = source.replace('@MACHINES@', '\n'.join(rows))
     path = Path(directory) / 'benchmark.cpp'
@@ -98,7 +98,7 @@ def append_callback(path, m):
     if (completed.words != analysis_memory.data || completed.word_count > words ||
         completed.sample.data != data || completed.sample.frames != sample_frames) return stats;
     analysis = &completed;"""
-    source = (ROOT / f'sdk/platform/opxy-1.2.0/benchmark_{m.kind}.cpp.in').read_text()
+    source = (ROOT / f'sdk/platform/opxy-1.2.1/benchmark_{m.kind}.cpp.in').read_text()
     for key, value in values.items():
         source = source.replace('@' + key + '@', str(value))
     require('@' not in source, 'Unexpanded diagnostic callback')

@@ -75,7 +75,7 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
    `v1.0.0`. Change the catalog entry to `draft` for review or `published` for
    inclusion, adding `repository`, `tag`, the full tagged `commit` and `path`
    from the field table. Add the generated `cpu` member from `catalog-cpu.json`.
-   The CPU record's commit must equal the tagged machine commit. If you link a
+   A new CPU record's commit must equal the tagged machine commit. If you link a
    report, keep it in an issue/comment or separate evidence location so adding
    the readout does not change the machine commit after measurement.
 6. **Validate the catalog PR.** From a checkout of the SDK, run
@@ -84,7 +84,10 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
    source and checks the entry; maintainer review follows below.
 
 Updates follow the same checks: tag a new machine revision, remeasure it and
-update `tag`, `commit` and `cpu` together. Preserve the published
+update `tag`, `commit` and `cpu` together. For a change that cannot affect CPU
+cost, a catalog maintainer can approve keeping the previous `cpu` record unchanged
+(still naming the commit it measured) by adding the `cpu-carried` label; the
+workflow runs again and passes `--allow-carried-cpu`. Preserve the published
 [control contract](#controls). Removal marks an entry `retired`; its ID is never
 reused, and retirement needs no new measurement.
 
@@ -115,6 +118,9 @@ A maintainer then reviews a new machine once, in full:
 - It uses only the public headers: no assembly, raw addresses or platform code.
 - Its audio callbacks never allocate, block, log or do I/O.
 - Its name is sensible, and its licence allows redistribution.
+- New synths follow the [control and header conventions](ux.md): five to eight
+  controls use two fixed rows and whole-page switching, with repeated shared
+  controls where the second page has no alternate.
 - It sounds right in the browser preview from its CI.
 
 An update moves `tag` and `commit` and is reviewed as a diff. The workflow

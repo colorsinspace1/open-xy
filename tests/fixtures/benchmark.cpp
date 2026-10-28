@@ -12,7 +12,7 @@ opxy::benchmark::Stats measured_callback() { return result; }
 void reset_records() { ++resets; std::memset(records, 0, sizeof(records)); }
 void export_records(u32 blocks) { need(blocks == 1500); ++exports; }
 void benchmark_one(void* controller, const Test* test, u32 index, u32 total) {
-    need(controller == reinterpret_cast<void*>(0x84c70fac));
+    need(controller == reinterpret_cast<void*>(0x84c696fc));
     need(index == calls && total == 9 + available);
     if (calls < 9) need(test == &stock_tests[calls]);
     else {
@@ -31,13 +31,13 @@ int unfamiliar_ready() { return available && !(lose_after_stock && calls >= 9); 
 
 namespace opxy { namespace platform {
 Address host_stock_address(Address address) {
-    if (address == 0x8c0c84c0) return reinterpret_cast<Address>(reset_records);
-    if (address == 0x8c0c8524) return reinterpret_cast<Address>(export_records);
-    if (address >= 0x08025264 && address < 0x08025264 + sizeof(records))
-        return reinterpret_cast<Address>(records) + address - 0x08025264;
-    if (address == 0x8409bf18) return reinterpret_cast<Address>(stock_tests);
-    if (address == 0x8d57b8f0) return reinterpret_cast<Address>(benchmark_one);
-    need(address == 0x84c70fac);
+    if (address == 0x8c0c7908) return reinterpret_cast<Address>(reset_records);
+    if (address == 0x8c0c796c) return reinterpret_cast<Address>(export_records);
+    if (address >= 0x08034f3c && address < 0x08034f3c + sizeof(records))
+        return reinterpret_cast<Address>(records) + address - 0x08034f3c;
+    if (address == 0x8409f3b4) return reinterpret_cast<Address>(stock_tests);
+    if (address == 0x8d57c848) return reinterpret_cast<Address>(benchmark_one);
+    need(address == 0x84c696fc);
     return address;
 }
 }}

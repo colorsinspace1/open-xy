@@ -17,7 +17,7 @@ from .definitions import ROOT, control_positions, paged, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
 
-TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.0'
+TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.1'
 
 
 def expand(template, values, destination, root=TEMPLATES):
@@ -294,6 +294,13 @@ def control_cycles(definition):
     return following
 
 
+def enum_steps(parameter):
+    """An enum's choice count, for stock's stepped encoder edits; 0 for any other control and for an
+    enum too large for stock's step table (fewer than 256 steps)."""
+    labels = parameter['mapping'].get('labels', []) if parameter['mapping']['kind'] == 'enum' else []
+    return len(labels) if len(labels) < 256 else 0
+
+
 def generate_synth_controls(directory, machines):
     """Synth ownership, alternate selection and continuous fine controls."""
     declarations, rows, formatters, lfo_rows = [], [], [], []
@@ -308,6 +315,8 @@ def generate_synth_controls(directory, machines):
         effect = m.kind == 'effect'
         following = (not effect and control_cycles(m.definition)) or list(range(8))
         continuous = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p['mapping']['kind'] != 'enum')
+        steps = [enum_steps(p) for p in m.definition['parameters']]
+        steps += [0] * (8 - len(steps))
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
         # The engine or effect ID is an absolute symbol the linker supplies.
         id_symbol = m.prefix + ('_fx_id' if effect else '_engine_id')
@@ -316,7 +325,12 @@ def generate_synth_controls(directory, machines):
         body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
         for i, p in enumerate(m.definition['parameters']):
             mapping = p['mapping']
+            # The selected choice's label, on synth and send pages alike.
             if mapping['kind'] == 'enum':
+                labels = ', '.join(json.dumps(label) for label in mapping['labels'])
+                body.extend([f'    case {i}: {{', f'        static const char* const labels[] = {{{labels}}};',
+                             f'        control_label(text, value, labels, {len(mapping["labels"])});',
+                             '        return true;', '    }'])
                 continue
             # Stock delay's note-length names. Send pages keep stock captions
             # for every other control.
@@ -338,7 +352,8 @@ def generate_synth_controls(directory, machines):
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
         page = not effect and paged(m.definition)
-        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, "
+        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, "
+                    f"{{{', '.join(map(str, steps))}}}, {m.prefix}_format, "
                     f"{'true' if effect else 'false'}, {'true' if page else 'false'}}},")
     return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters), LFO_MACHINES='\n'.join(lfo_rows)),
                   Path(directory) / 'synth_control_table.cpp')
@@ -357,11 +372,11 @@ def generate_project_companion_table(directory, machines):
     return expand('project_companion_table.cpp.in', dict(DECLARATIONS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'project_companion_table.cpp')
 
-# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
-# delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
+# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50e048), as stock
+# delay and reverb use it, only for the two send slots (docs/abi-1.2.1.md).
 FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay and reverb use the same way.
     object->buffer = slot == 14 || slot == 15
-        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
+        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50e048)(slot, {bytes}u) : nullptr;'''
 
 
 def generate_fx_object(directory, m, benchmark=False):

@@ -227,9 +227,8 @@ def main(argv=None):
         export(package, out, tool_paths(args.toolchain), args.preview_cxx,
                stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'), personal=args.personal)
         # Validate firmware and content output against the independent Python writer.
-        for mode in ([], ['-O']):
-            subprocess.run([sys.executable, *mode, str(ROOT / 'tools/check_browser_firmware.py'), str(out),
-                            args.stock_os, args.stock_content], cwd=ROOT, check=True)
+        subprocess.run([sys.executable, str(ROOT / 'tools/check_browser_firmware.py'), str(out),
+                        args.stock_os, args.stock_content], cwd=ROOT, check=True)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         # The unnamed builder and its inputs stay in --out for inspection.
         parser.exit(1, f'ERROR: {error}\nIncomplete export left in {out}; use a new --out to retry.\n')

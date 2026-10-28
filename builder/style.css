@@ -48,6 +48,8 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .steps b { display:block; font:11px/1.8 Consolas,monospace; font-weight:400; color:var(--muted); }
 .steps [aria-current=step] { background:var(--soft); }
 .nav-icon { display:flex; width:34px; flex:none; }
+.source-link { margin-top:auto; padding:0 14px; font-size:12px; color:var(--muted); }
+.source-link:hover { color:var(--ink); }
 .nav-icon svg { width:100%; }
 .main-stage { min-width:0; background:var(--panel); border-radius:20px; padding:24px clamp(24px,3vw,48px); }
 #builder-workspace { max-width:1100px; margin:auto; }
@@ -202,7 +204,8 @@ details input { max-width:100%; }
 .capacity details { margin-bottom:0; }
 #download-overview { width:100%; text-align:center; max-width:760px; margin:auto; }
 .download-card h2 { font-size:19px; }
-#bundle-art { max-width:440px; margin:0 auto 28px; text-align:left; }
+#bundle-art { max-width:440px; max-height:240px; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin:0 auto 28px; text-align:left; }
+#bundle-art:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
 .download-card p { font-size:14px; }
 .download-card .primary { margin:12px 0; min-width:210px; }
 .qualification { font-size:12px; max-width:540px; margin:14px auto; }
@@ -395,6 +398,7 @@ footer details[open] { flex-basis:100%; }
   .steps button { flex-direction:column; justify-content:center; gap:6px; padding:12px 6px; font-size:12px; text-align:center; }
   .steps b { display:none; }
   .nav-icon { width:26px; }
+  .source-link { padding:0; text-align:center; }
 }
 /* Fit the machine step to a desktop window. The screen takes the remaining
    space; the list can grow without moving the memory bar or install button. */

@@ -1,7 +1,7 @@
 # OP-XY SDK
 
 Write an instrument in C++, audition it in a browser, and build it into
-firmware for an OP-XY running OS 1.2.0. The same sound and display code
+firmware for an OP-XY running OS 1.2.1. The same sound and display code
 compiles to WebAssembly for previews and to Blackfin for the device.
 
 This repository is the SDK and the [catalog](docs/catalog.md) of published
@@ -20,7 +20,7 @@ against `staging`.** It is the development branch; `main` receives reviewed
 releases from `staging`. See the [contributor workflow](CONTRIBUTING.md#branch-workflow).
 
 This is an unofficial, experimental SDK. A build statically links a curated
-collection of machines into exact stock OS 1.2.0; arbitrary engine installation
+collection of machines into exact stock OS 1.2.1; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
 build checks cannot guarantee recovery from a faulty image. Browser previews
 work on any OS; firmware builds need Windows x86_64, Apple-silicon macOS or
@@ -56,6 +56,9 @@ worked examples. Create a repository-ready starter directly from the SDK:
 python sdk.py new --repository --id mymachine --name "My Machine" --out ../mymachine
 ```
 
+Synths start with four controls and the stock header. Choose `--controls 5`,
+`6`, `7` or `8` when the sound needs more controls; these use the shared
+two-page header. Unused second-page columns repeat the same control from page 1.
 It includes source, tests, README, agent instructions, licence and CI. Use
 `--kind effect` for a send effect; omit `--repository` when adding just a machine
 folder to an existing repository. Follow the generated instructions through
@@ -74,6 +77,7 @@ previews, firmware builds and packaging.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
 - [Hardware CPU profiling](docs/profiling.md): measure your machine and publish the required catalog readout.
+- [Port to a new OS release](docs/porting.md): move the profile and platform layer to a new stock OP-XY OS, test it and compare CPU.
 - [Catalog](docs/catalog.md): machines published from their own repositories, pinned by commit.
 - [Project companions](docs/projects.md): the `.oxy` file recording which machine each project number meant.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
@@ -102,6 +106,6 @@ carries its own licence in its repository. Timestretch, in the
 AGPL-3.0; the SDK carries no copyleft code, but firmware and builder kits that
 include Timestretch are distributed under the AGPL-3.0. No firmware is included: all firmware comes from the user's own
 device. The one stock file in this repository is the instrument catalog every
-build extends, [`op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
+build extends, [`op1_factory.json`](profiles/opxy-1.2.1/content/op1_factory.json),
 kept for development; the builder distributes it too. The
 [toolchain](docs/toolchain.md) release ships its GPL sources.

@@ -39,12 +39,12 @@ static void* region_stub(unsigned track, unsigned key, unsigned*, unsigned flags
     check(track == 2 && key == selected_key && flags == 0); return region;
 }
 Address opxy::platform::host_stock_address(Address address) {
-    if (address == 0x8d4dd508) return reinterpret_cast<Address>(&queue_stub);
+    if (address == 0x8d4dd728) return reinterpret_cast<Address>(&queue_stub);
     if (address == kScreen) return reinterpret_cast<Address>(&screen);
-    if (address == 0x8d585eb4) return reinterpret_cast<Address>(&track_engine_stub);
-    if (address == 0x8d4d7650) return reinterpret_cast<Address>(&key_stub);
-    if (address == 0x8d587904) return reinterpret_cast<Address>(&region_stub);
-    if (address == 0x8d5b5e88) return reinterpret_cast<Address>(&gate_stub);
+    if (address == 0x8d58781c) return reinterpret_cast<Address>(&track_engine_stub);
+    if (address == 0x8d4d6c98) return reinterpret_cast<Address>(&key_stub);
+    if (address == 0x8d58926c) return reinterpret_cast<Address>(&region_stub);
+    if (address == 0x8d5b7d10) return reinterpret_cast<Address>(&gate_stub);
     std::abort();
 }
 int main() {

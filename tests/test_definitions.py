@@ -196,7 +196,15 @@ class Definitions(unittest.TestCase):
             rejected.append(changed)
         short = copy.deepcopy(value); del short['parameters'][-1]
         for preset in short['presets'].values(): del preset['p2']
-        rejected.append(short)
+        validate_definition(short, 'synth')
+        following = control_cycles(short)
+        self.assertEqual(following[:4], [5, 6, 2, 4])
+        shown = list(range(4))
+        shown = [following[s] for s in shown]
+        self.assertEqual(shown, [5, 6, 2, 4])
+        self.assertEqual([following[s] for s in shown], list(range(4)))
+        empty = copy.deepcopy(self.engine); empty['press'] = 'page'
+        rejected.append(empty)
         twice = copy.deepcopy(value); twice['parameters'][-1]['control'] = 3
         rejected.append(twice)
         for bad in rejected:
@@ -250,7 +258,7 @@ class Definitions(unittest.TestCase):
                     hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
                     result = subprocess.run(
                         [LAYOUT_CXX, '-m32', '-std=gnu++11', '-fsyntax-only', '-Wall', '-Werror', '-ffreestanding',
-                         *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.0',
+                         *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.1',
                                                          FOLDER / 'probesynth')), source.name],
                         cwd=directory, capture_output=True, text=True, timeout=120, **hidden)
                     self.assertEqual(result.returncode, 0, result.stderr)

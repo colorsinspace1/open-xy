@@ -112,7 +112,7 @@ class Services(unittest.TestCase):
 class SourceContracts(unittest.TestCase):
     def test_linker_layout_is_the_reviewed_one(self):
         profile = config()
-        self.assertEqual(sha((ROOT / 'linker/opxy-1.2.0.ld').read_bytes()), profile['linker_sha256'])
+        self.assertEqual(sha((ROOT / 'linker/opxy-1.2.1.ld').read_bytes()), profile['linker_sha256'])
 
     def test_profile_is_authenticated(self):
         original = pipeline.read

@@ -11,11 +11,13 @@ FIELDS = {'benchmark', 'commit', 'firmware_sha256', 'runs', 'block_percent'}
 REPORT_URL = r'https://[A-Za-z0-9.-]+(?::[0-9]+)?/[^\s<>"\\]*'
 
 
-def validate(value, kind, commit):
+def validate(value, kind, commit=None):
+    """A measurement's fields; with a commit, also that it measured that commit."""
     require(isinstance(value, dict) and set(value) - {'report'} == FIELDS, 'cpu: unexpected measurement fields')
     require(kind in BENCHMARKS and value['benchmark'] == BENCHMARKS[kind], 'cpu: benchmark must match the machine kind')
-    require(isinstance(commit, str) and re.fullmatch(r'[0-9a-f]{40}', commit) and value['commit'] == commit,
-            'cpu: measurement must match the catalog commit; remeasure when updating')
+    require(isinstance(value['commit'], str) and re.fullmatch(r'[0-9a-f]{40}', value['commit']),
+            'cpu: commit is the full SHA of the measured machine source')
+    require(commit is None or value['commit'] == commit, 'cpu: measurement must match the catalog commit')
     require(isinstance(value['firmware_sha256'], str) and re.fullmatch(r'[0-9a-f]{64}', value['firmware_sha256']),
             'cpu: firmware_sha256 must identify the measured build')
     require(type(value['runs']) is int and 3 <= value['runs'] <= 100, 'cpu: use 3 to 100 independent runs')

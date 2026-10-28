@@ -94,7 +94,7 @@ class Companions(unittest.TestCase):
 def host_writer(folder):
     """The real firmware writer built for the host, its stock file calls on host stdio."""
     from test_sample_services import HOST_CXX
-    platform = ROOT / 'sdk/platform/opxy-1.2.0'
+    platform = ROOT / 'sdk/platform/opxy-1.2.1'
     stock = (platform / 'stock.hpp').read_text(encoding='utf-8')
     stock = stock.replace('typedef __UINTPTR_TYPE__ Address;', 'typedef __UINTPTR_TYPE__ Address;\nAddress host_stock_address(Address);')
     stock = stock.replace('reinterpret_cast<T*>(address)', 'reinterpret_cast<T*>(host_stock_address(address))')
@@ -134,7 +134,7 @@ class FirmwareWriter(unittest.TestCase):
 
     def test_every_save_reaches_the_writer_through_one_reviewed_call(self):
         hooks = [p for p in config()['patches'] if p.get('symbol') == 'sdk_project_save']
-        self.assertEqual([(p['address'], p['before'], p['call']) for p in hooks], [('0x8d584576', '00e31b97', True)])
+        self.assertEqual([(p['address'], p['before'], p['call']) for p in hooks], [('0x8d585eda', '00e3cd98', True)])
         self.assertIn('project_companion', native.SDK_UNITS)
         self.assertIn('project_companion_table', native.SDK_UNITS)
 

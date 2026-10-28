@@ -1,4 +1,4 @@
-"""Build, package and verify a collection of machines for stock OP-XY 1.2.0. No device operations.
+"""Build, package and verify a collection of machines for stock OP-XY 1.2.1. No device operations.
 
 Every machine in the collection is compiled and linked into one module
 inside the 2 MiB reservation with relocated engine and screen tables. Object
@@ -31,14 +31,14 @@ from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, doc
                        read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
 
-LINKER = 'linker/opxy-1.2.0.ld'
-TARGET = 'opxy-1.2.0'
+LINKER = 'linker/opxy-1.2.1.ld'
+TARGET = 'opxy-1.2.1'
 # The stock instrument catalog every build extends, kept in the repository for
 # development: the builder distributes it too. Firmware always comes from the device.
-STOCK_CONTENT = ROOT / 'profiles/opxy-1.2.0/content'
-DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_gui_role=0x8d5c200c, stock_sample_classify_tail=0x8d5b5b3e,
-                   stock_sample_key_tail=0x8d5878ac)
-TEMPLATES = 'sdk/platform/opxy-1.2.0/'
+STOCK_CONTENT = ROOT / 'profiles/opxy-1.2.1/content'
+DEFINITIONS = dict(stock_catalog_insert=0x8d5bd928, stock_gui_role=0x8d5c3eac, stock_sample_classify_tail=0x8d5b79c6,
+                   stock_sample_key_tail=0x8d589214)
+TEMPLATES = 'sdk/platform/opxy-1.2.1/'
 RUNTIME_ASM, RUNTIME_CXX = 'sdk/platform/blackfin/divide.s', 'sdk/platform/blackfin/memory.cpp'
 ALLOWED_SECTIONS = {'.text', '.rodata', '.data', '.bss'}
 MAX_COMPILER_FILE = 64 << 20
@@ -48,7 +48,7 @@ CXX_FLAGS = ['-mcpu=bf707', '-O2', '-std=gnu++11', '-ffreestanding', '-fno-excep
              '-fno-threadsafe-statics', '-fno-use-cxa-atexit', '-fno-asynchronous-unwind-tables',
              '-fno-unwind-tables', '-fno-common', '-fno-tree-loop-distribute-patterns',
              '-fomit-frame-pointer', '-nostdinc++', '-Wall', '-Werror', '-Wno-unused-variable']
-# Stock SVG parse (0x8d5f19f2) accepts at most four fractional digits and no exponents.
+# Stock SVG parse (0x8d5f38ba) accepts at most four fractional digits and no exponents.
 SVG_ELEMENTS = {'g', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text'}
 SVG_NUMERIC = {'d', 'points', 'transform', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
                'width', 'height', 'stroke-width', 'stroke-miterlimit', 'stroke-dasharray',
@@ -137,7 +137,7 @@ def compile_cxx(cxx, assembler, source, obj, includes=()):
 
 def includes(m=None):
     """Include path for firmware-compiler units: SDK headers, then the machine's own folders."""
-    paths = ['.', 'sdk/include', 'sdk/platform/opxy-1.2.0']
+    paths = ['.', 'sdk/include', 'sdk/platform/opxy-1.2.1']
     if m is not None:
         paths.append(m.source())
     paths.append('sdk/platform/blackfin/freestanding')
@@ -337,16 +337,28 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
 
 
 def normalize_object(data):
-    """Disable GNU string pooling for reproducible, simple section placement.
+    """Disable GNU string pooling and COMDAT groups for reproducible, simple section placement.
 
+    An inline function the compiler keeps out of line, or a static inside one, comes
+    in a COMDAT group with a weak symbol. Each object is one translation unit, so its
+    sections become plain ones and its weak definitions global: a definition repeated
+    across objects then fails both linkers alike instead of being merged by one.
     Both linkers receive these exact bytes. No instructions or relocations change.
     """
     sections = elf_sections(data)
     require(struct.unpack_from('<H', data, 16)[0] == 1, 'Expected Blackfin ET_REL')
     out = bytearray(data)
-    for at, (_name, _kind, flags, *_rest) in sections:
-        if flags & 2:
-            struct.pack_into('<I', out, at + 8, flags & ~0x30)
+    for at, (_name, kind, flags, _addr, offset, size, *_rest) in sections:
+        if kind == 17:  # SHT_GROUP: deactivate the header without moving section indices
+            # PROGBITS leaves multiple orphan .group sections in GNU's final ELF.
+            # SHT_NULL makes the linker ignore the obsolete group records entirely.
+            struct.pack_into('<II', out, at + 4, 0, 0)
+            continue
+        struct.pack_into('<I', out, at + 8, flags & ~(0x30 if flags & 2 else 0) & ~0x200)
+        if kind == 2:  # the symbol table: defined weak symbols become global
+            for symbol in range(offset, offset + size, 16):
+                if out[symbol + 12] >> 4 == 2 and struct.unpack_from('<H', out, symbol + 14)[0]:
+                    out[symbol + 12] = 0x10 | out[symbol + 12] & 15
     return bytes(out)
 
 
@@ -751,7 +763,7 @@ def selected_collection(args):
 
 COMMANDS = {
     'compile': 'Compile and link the collection into the native module alone; needs no stock files.',
-    'build': 'Build firmware: link the collection into stock OP-XY 1.2.0 and check the result.',
+    'build': 'Build firmware: link the collection into stock OP-XY 1.2.1 and check the result.',
     'verify': 'Rebuild an existing package independently and compare it (release host only).',
 }
 

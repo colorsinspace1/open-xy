@@ -75,7 +75,7 @@ def hook_target(patch, instruction):
 def assemble(stock, module, profile, original_profile, edits, services, profiling=True):
     require(type(profiling) is bool, 'Profiling must be a boolean')
     require(sha(stock) == original_profile['stock_sha256'] and len(stock) == original_profile['stock_bytes'],
-            'Expected exact decrypted stock OP-XY 1.2.0')
+            'Expected exact decrypted stock OP-XY 1.2.1')
     require(len(module) > 0 and len(module) <= original_profile['reserved_bytes'], 'Invalid module size')
     require(len(profile['patches']) == len(original_profile['patches']) == edits, f'Expected {edits} edit intervals')
     low = original_profile['module_base']

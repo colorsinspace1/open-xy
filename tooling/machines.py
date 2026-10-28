@@ -26,9 +26,10 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # machine of the same major version and an equal or older minor version.
 # 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes),
 # its tempo (resources.transport) and division captions; 1.3 the machine's own presets,
-# a press that switches a synth's whole page, up to 16 display text slots, and a
-# sample engine's own drawing page (resources.display) and single-sample assignment.
-SDK_VERSION = (1, 3)
+# a press that switches a synth's whole page and up to 16 display text slots.
+# 1.4 adds the reusable header and partial second pages sharing unassigned controls.
+# 1.5 adds a sample engine's own drawing page and single-sample assignment.
+SDK_VERSION = (1, 5)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 # A machine's own presets (machine.json `presets`): <name>.json files the builder
@@ -219,6 +220,8 @@ def machine_at(root, identity=None):
         require_sdk(version, (1, 2), 'A division control')
     if paged(definition):
         require_sdk(version, (1, 3), 'A press that switches the page ("press": "page")')
+        if len(definition['parameters']) < 8:
+            require_sdk(version, (1, 4), 'A partially filled second page')
     if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
         require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
@@ -236,7 +239,7 @@ def machine_at(root, identity=None):
     display = 'drawing' if screen else 'stock'
     numbers = check_identity(config()['identities'], kind, value.get('identity'), screen)
     if kind == 'sample' and (screen or 'singleSample' in definition['resources']):
-        require_sdk(version, (1, 3), "A sample engine's own page (resources.display) or singleSample")
+        require_sdk(version, (1, 5), "A sample engine's own page (resources.display) or singleSample")
         require(not definition['resources'].get('singleSample', 0) or numbers['page'] != 7,
                 'singleSample uses stock page 2 or a drawing display, not drum page 7')
     # The native plan compiles extra translation units only into synths.
@@ -301,7 +304,9 @@ def read_layout(path):
     profile = config()
     require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
             f'{path} is not a machine layout ({LAYOUT_FORMAT})')
-    require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
+    # Earlier profiles with the same identity rules number machines the same way.
+    require(value.get('profile') in (profile['id'], *profile.get('layout_profiles', ())),
+            f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
     return check_layout_numbers(value['machines'], 'the layout')
 
 

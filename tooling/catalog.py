@@ -66,7 +66,7 @@ def validate(value):
             required = COMMON | RELEASE
         if 'cpu' in entry:
             require('commit' in entry and status != 'reserved', f'{name}: cpu needs a pinned release')
-            cpu_measurement.validate(entry['cpu'], entry.get('kind'), entry['commit'])
+            cpu_measurement.validate(entry['cpu'], entry.get('kind'))
             required = required | {'cpu'}
         require(set(entry) == required, f'{name}: catalog fields for a {status} machine: '
                 + ', '.join(sorted(required)))
@@ -95,15 +95,21 @@ MOVES = {'reserved': {'reserved', 'draft', 'published', 'retired'},
          'retired': {'retired'}}
 
 
-def changes(before, after):
+def changes(before, after, allow_carried_cpu=False):
     """An updated catalog keeps every machine it held, with its kind, and only moves a
-    status forward."""
+    status forward. A catalog maintainer may let an update keep its previous cpu record."""
     current = {e['id']: e for e in after}
     previous = {e['id']: e for e in before}
     for entry in after:
         if entry['status'] in ('draft', 'published') and entry != previous.get(entry['id']):
             require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
-            cpu_measurement.validate(entry['cpu'], entry['kind'], entry['commit'])
+            cpu_measurement.validate(entry['cpu'], entry['kind'])
+            # With a maintainer's approval, an update may carry its previous measurement over
+            # unchanged, still naming the commit it measured; otherwise it measures the pinned commit.
+            carried = allow_carried_cpu and entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
+            require(carried or entry['cpu']['commit'] == entry['commit'],
+                    f"{entry['id']}: cpu must measure the pinned commit; remeasure when updating "
+                    "(a catalog maintainer can approve keeping the previous measurement)")
     for entry in before:
         name = entry['id']
         require(name in current, f'{name}: catalog entries are never removed; retire the machine instead')
@@ -255,6 +261,8 @@ def main(argv=None):
     checking.add_argument('--base', help='a git revision to compare with, such as the pull request target')
     checking.add_argument('--allow-control-changes', action='store_true',
                           help="accept releases that change what saved parameter values mean (a catalog maintainer's approval)")
+    checking.add_argument('--allow-carried-cpu', action='store_true',
+                          help="accept updates that keep their previous cpu measurement (a catalog maintainer's approval)")
     checking.add_argument('--cache', type=Path, default=CACHE, help='fetched machines (default: local/catalog)')
     fetching = command.add_parser('fetch', help='fetch every published machine at its pinned commit')
     testing = command.add_parser('test', help='fetch, then check every published machine with sdk.py test')
@@ -277,7 +285,7 @@ def main(argv=None):
                         if isinstance(entry, dict):
                             entry.pop('identity', None)
                 before = validate(before) if before else []
-                changes(before, entries)
+                changes(before, entries, args.allow_carried_cpu)
                 # A moved release is fetched at both commits to compare its controls.
                 for line in release_controls(before, entries, args.cache, args.allow_control_changes):
                     print(line)

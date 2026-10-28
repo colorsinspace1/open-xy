@@ -16,8 +16,8 @@ from tooling.firmware import hooks
 from tooling.pipeline import config
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILE = 'profiles/opxy-1.2.0.json'
-LINKER = 'linker/opxy-1.2.0.ld'
+PROFILE = 'profiles/opxy-1.2.1.json'
+LINKER = 'linker/opxy-1.2.1.ld'
 
 
 def read_text(relative):
@@ -59,7 +59,7 @@ class Profile(unittest.TestCase):
         hooked = [p for p in self.profile['patches'] if p['kind'] == 'hook']
         tables.check_compositor(hooked)
         site = '%#x' % tables.COMPOSITOR_ADVANCE
-        for change in (dict(symbol='sdk_other'), dict(before='0f6420e180008708'), dict(address='0x8d5208fc')):
+        for change in (dict(symbol='sdk_other'), dict(before='0f6420e180008708'), dict(address='0x8d5214c4')):
             altered = copy.deepcopy(hooked)
             next(p for p in altered if p['address'] == site).update(change)
             with self.subTest(change=change), self.assertRaises(ValueError):

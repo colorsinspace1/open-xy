@@ -1,7 +1,7 @@
 # Build your own firmware
 
 `sdk.py build` statically links every machine in the collection into exact
-stock OS 1.2.0, using the [firmware ABI](abi-1.2.0.md), and checks the result.
+stock OS 1.2.1, using the [firmware ABI](abi-1.2.1.md), and checks the result.
 It runs on Windows x86_64, Apple-silicon macOS and Linux x86_64. To choose among the curated
 machines without building, use the [browser builder](builder.md) instead. A
 machine reaches the firmware by joining the collection; read the
@@ -52,7 +52,7 @@ Native commands then use `local/toolchain` and check every tool against the
 
 ## 2. Copy the OS from your OP-XY
 
-On an OP-XY running OS 1.2.0, hold COM while switching it on to open te-boot.
+On an OP-XY running OS 1.2.1, hold COM while switching it on to open te-boot.
 It must show "3. dev menu"; if not, enable it with the
 [builder's dev menu helper](builder.md#dev-menu). Then:
 
@@ -66,14 +66,14 @@ It must show "3. dev menu"; if not, enable it with the
 3. Copy the OS into a folder outside every checkout:
 
 ```text
-stock-1.2.0/
+stock-1.2.1/
   os.ldr               from /upgrade/firmware/blackfin/bin/os.ldr
 ```
 
 4. Press track 2 for "2. exit".
 
 If the OP-XY freezes on "mtp mode active" as soon as a computer connects,
-reinstall the official OS 1.2.0 update (`.tfw`) and try again.
+reinstall the official OS 1.2.1 update (`.tfw`) and try again.
 
 For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows,
 `~/Library/Application Support/OPXY-SDK/private/` on macOS or
@@ -81,7 +81,7 @@ For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows,
 from your device; the build accepts only the exact stock OS, and an encrypted
 `.tfw` is a different format. The stock instrument catalog the build extends,
 `op1_factory.json`, is in this repository
-([`profiles/opxy-1.2.0/content/op1_factory.json`](../profiles/opxy-1.2.0/content/op1_factory.json)) and is the
+([`profiles/opxy-1.2.1/content/op1_factory.json`](../profiles/opxy-1.2.1/content/op1_factory.json)) and is the
 default `--stock-content`; pass another folder holding the same file to use
 your own copy.
 
@@ -126,7 +126,7 @@ older minor version.
 ## 4. Build
 
 ```sh
-python sdk.py build --machine <folder> --stock-os <stock-1.2.0>/os.ldr --out <builds>/mine-001
+python sdk.py build --machine <folder> --stock-os <stock-1.2.1>/os.ldr --out <builds>/mine-001
 ```
 
 The package records its collection, so verifying or exporting it needs no
@@ -190,12 +190,12 @@ reproduces the reference bytes ([hosts](toolchain.md#hosts)). There, the
 maintainer runs:
 
 ```sh
-python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.0>/os.ldr --stock-content profiles/opxy-1.2.0/content
+python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.1>/os.ldr --stock-content profiles/opxy-1.2.1/content
 ```
 
 It independently rebuilds the package (`sdk.py verify`) and runs the fixture
-tests that need the package and stock files, under normal Python and
-`python -O`; missing inputs or skipped tests fail. The sample-service fixtures
+tests that need the package and stock files; missing inputs or skipped tests
+fail. The sample-service fixtures
 need a host C++11 compiler (`--host-cxx`, default `g++`) on PATH. A changed
 source requires a new package, not a manually changed manifest. Public `check`
 ignores inherited fixture variables. A personal build doesn't need this step.

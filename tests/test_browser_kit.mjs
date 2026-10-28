@@ -21,7 +21,7 @@ function elf() {
   return bytes;
 }
 function machine(id, engine, page, origin='personal') { return {id, prefix:id, kind:'synth', identity:{engine,page}, absent:{}, origin}; }
-const profileBytes = readFileSync(new URL('../profiles/opxy-1.2.0.json',import.meta.url));
+const profileBytes = readFileSync(new URL('../profiles/opxy-1.2.1.json',import.meta.url));
 function fixture() {
   const object = {...readObject(elf()), name:'a.o',owner:'a'};
   return {version:'0.0.2',profile:JSON.parse(profileBytes),definitions:{},fixed:{a:{engine:34,page:82}},machines:[machine('a',34,82)],objects:[object]};
@@ -70,15 +70,37 @@ test('profiling defaults on; disabling it changes only the reviewed diagnostic h
   for (const image of [on, off]) assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:['a']});
 });
 
-test('profiling recovery rejects mixed modes, hook corruption, and altered linked code', async () => {
+test('only an exact build restores its selection; others recover verified stock or are rejected', async () => {
   const {kit, linked, stock} = await profilingFixture();
   const on = await patchFirmware(kit, linked, stock), off = await patchFirmware(kit, linked, stock, {profiling:false});
+  const earlier = {stock, selected:null, earlier:true};
+  // Mixed modes, altered edits or altered linked code: stock is rebuilt from the
+  // reviewed edits and verified by hash; the uploaded module is never used.
   const mixed = off.slice(); mixed.set(on.subarray(32, 40), 32);
-  await assert.rejects(recoverFirmware(kit, mixed));
-  for (const image of [on, off]) for (const at of [32, 48, 60, readLdr(image).at(-2).offset + 16]) {
-    const damaged = image.slice(); damaged[at] ^= 1;
-    await assert.rejects(recoverFirmware(kit, damaged));
+  assert.deepEqual(await recoverFirmware(kit, mixed), earlier);
+  for (const image of [on, off]) {
+    for (const at of [32, 48, readLdr(image).at(-2).offset + 16]) {
+      const damaged = image.slice(); damaged[at] ^= 1;
+      assert.deepEqual(await recoverFirmware(kit, damaged), earlier);
+    }
+    // A change outside every reviewed edit is not OS 1.2.1.
+    const foreign = image.slice(); foreign[60] ^= 1;
+    await assert.rejects(recoverFirmware(kit, foreign), /not made from OS 1\.2\.1/);
   }
+});
+
+test('an earlier release whose module loads elsewhere recovers stock OS 1.2.1', async () => {
+  const {kit, linked, stock} = await profilingFixture();
+  const image = await patchFirmware(kit, linked, stock, {profiling:false});
+  // Move the module record's load address, as a release with smaller tables did.
+  const at = readLdr(image).at(-2).offset, d = new DataView(image.buffer, image.byteOffset);
+  d.setUint32(at + 4, kit.profile.module_base + 0x180000, true);
+  image[at + 2] = 0; image[at + 2] = image.subarray(at, at + 16).reduce((a, b) => a ^ b, 0);
+  assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:null, earlier:true});
+  // A kit too large to search every selection still recovers stock.
+  kit.machines = [...kit.machines, ...Array.from({length:10}, (_, i) => machine('m' + i, 35 + i, 83 + i))];
+  const exact = await patchFirmware(kit, linked, stock, {profiling:false});
+  assert.deepEqual(await recoverFirmware(kit, exact), {stock, selected:null, earlier:true});
 });
 
 test('profiling option and profile hook condition must be exact booleans', async () => {
@@ -198,6 +220,7 @@ test('saved layouts restore numbers and selections, including older saved select
     {selected:['a'],machines:{a:{engine:34,page:82},gone:{engine:40,page:90}}});
   assert.deepEqual(readLayout(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}).machines,{a:{page:82,engine:34}});
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:'wrong',machines:{}}),/different OS version/);
+  assert.deepEqual(readLayout(k,{format:'opxy-layout/1',profile:k.profile.layout_profiles[0],machines:{}}).machines,{});
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,selected:['missing'],machines:{}}),/doesn’t have/);
   assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,machines:{a:{engine:'34',page:82}}}),/Invalid numbers/);
   assert.throws(()=>linkKit(k,['a'],{a:{engine:40,page:90}}),/a has fixed numbers/);
@@ -228,7 +251,7 @@ test('call relocation uses the instruction start and rejects odd or out-of-range
 test('curated profile and object authentication reject modified input', async () => {
   const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
   k.objects=[{name:'a.o',owner:'a',bytes:Buffer.from(elf()).toString('base64'),sha256:await sha256(elf())}];
-  k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
+  k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.1/screen.svg',import.meta.url),'utf8');
   await openKit(k);
   const template=k.screenTemplate;
   for(const changed of [template.replace('id="values"','id="wrong"'),null,'']) {
@@ -266,7 +289,7 @@ test('a machine says where it comes from: a catalog release or a personal folder
   // Community machines start unselected; Open-XY's own and the user's start selected.
   assert.deepEqual(['official', 'catalog', 'personal'].map(origin => chosenByDefault({origin})), [true, false, true]);
   const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
-  k.objects=[]; k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
+  k.objects=[]; k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.1/screen.svg',import.meta.url),'utf8');
   Object.assign(k.machines[0], {origin:'catalog', source}); k.fixed={}; await openKit(k);
   // A machine with fixed numbers (kit.fixed), from wherever it comes, uses exactly those.
   k.fixed={a:{engine:34,page:82}}; await openKit(k);
@@ -288,7 +311,7 @@ test('firmware recovery rejects malformed and foreign loader layouts without pri
   const final = new Uint8Array(16);
   new DataView(final.buffer).setUint32(0, 0xad008004, true);
   final[2] = final.reduce((a,b) => a ^ b, 0);
-  await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.0 is supported/);
+  await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.1 is supported/);
   kit.machines = Array.from({length:11},(_,i) => machine('m'+i,34+i,82+i));
-  await assert.rejects(recoverFirmware(kit, final), /can.t be recognized/);
+  await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.1 is supported/);
 });

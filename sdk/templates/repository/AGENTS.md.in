@@ -8,9 +8,16 @@ Adjust that path if the user already has the SDK elsewhere.
 1. Read the [machine API](https://github.com/etcetc000/open-xy/blob/staging/docs/api.md),
    follow the [UX conventions](https://github.com/etcetc000/open-xy/blob/staging/docs/ux.md)
    for controls, pages, screens and motion, and read the relevant [core machines](https://github.com/etcetc000/open-xy-core-machines):
-   Karplus or 2op FM for synths, Ring Mod or Ping Pong for effects, Timestretch
+   Macro Osc for two-page synths, Karplus or 2op FM for four-control synths,
+   Ring Mod or Ping Pong for effects, Timestretch
    for sample engines. They are the worked examples; this repository holds the
-   user's implementation. Preserve licences and attribution when reusing code.
+   user's implementation. Use the actual parameter count: four controls keep
+   the stock header. For five to eight controls, keep the generated shared
+   `opxy/page_header.hpp` header and its SVG bindings: fixed rows, lowercase
+   titles, active-row emphasis, any encoder press switches pages. Repeat the
+   same saved parameter in columns without alternates; never invent filler
+   parameters. Format captions in real units and keep artwork below y=38.
+   Preserve licences and attribution when reusing code.
 2. Implement through public `<opxy/...>` headers. Keep code, metadata, artwork
    and sound tests here. Do not edit the SDK to make the machine work; explain
    missing interfaces and propose a separate SDK PR against `staging`.

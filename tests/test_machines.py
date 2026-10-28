@@ -152,12 +152,15 @@ class OutsideMachines(unittest.TestCase):
         self.assertTrue(m.contains(self.folder / 'out') and not m.contains(self.folder.parent / 'out'))
 
     def test_collections_list_machine_folders(self):
-        collection = Path(self.temporary.name) / 'collection.json'
-        probe = Path(os.path.relpath(FOLDER / 'probefx', self.folder.parent)).as_posix()
-        collection.write_text(json.dumps({'schema': 1, 'machines': [{'path': probe}, {'path': 'opxy-fmcopy'}]}),
-                              encoding='utf-8')
+        # Paths are relative to the collection's folder; both stay on its drive, as relpath needs on Windows.
+        probefx = self.folder.parent / 'shelf' / 'probefx'
+        shutil.copytree(FOLDER / 'probefx', probefx)
+        collection = self.folder.parent / 'lists' / 'collection.json'
+        collection.parent.mkdir()
+        collection.write_text(json.dumps({'schema': 1, 'machines': [{'path': '../shelf/probefx'},
+                                                                    {'path': '../opxy-fmcopy'}]}), encoding='utf-8')
         entries = machines.read_collection(collection)
-        self.assertEqual(entries, [{'path': str(FOLDER / 'probefx')}, {'path': str(self.folder)}])
+        self.assertEqual(entries, [{'path': str(probefx)}, {'path': str(self.folder)}])
         self.assertEqual([m.id for m in machines.collection(entries)], ['probefx', 'fmcopy'])
         extra = machines.read_collection(collection, [FOLDER / 'probesynth'])
         self.assertEqual([m.id for m in machines.collection(extra)], ['probefx', 'fmcopy', 'probesynth'])
@@ -173,10 +176,10 @@ class OutsideMachines(unittest.TestCase):
         self.assertEqual((fmcopy.identity, fmcopy.requested), (self.free, dict(self.free, engine=34)))
 
     def test_sdk_version_and_fixed_names_are_checked(self):
-        for version in ('1.1', '1.2', '1.3'):
+        for version in ('1.1', '1.2', '1.3', '1.4', '1.5'):
             self.rename('fmcopy', self.free, version)
             self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
-        for version in ('0.9', '2.0', '1.4', '1', 'latest', None):
+        for version in ('0.9', '2.0', '1.6', '1', 'latest', None):
             with self.subTest(version=version):
                 self.rename('fmcopy', self.free, version)
                 with self.assertRaises(ValueError):

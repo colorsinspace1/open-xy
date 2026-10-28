@@ -37,7 +37,7 @@ as its worked example; `new` currently scaffolds synths and effects.
 ## SDK changes
 
 Read README.md and CONTRIBUTING.md. For native changes also read
-[the firmware ABI](docs/abi-1.2.0.md) and [building firmware](docs/build.md).
+[the firmware ABI](docs/abi-1.2.1.md) and [building firmware](docs/build.md).
 
 - Engine-specific source, metadata, generators and sound tests belong under that
   engine. Keep `tooling/` and root `tests/` focused on shared contracts.
@@ -54,7 +54,7 @@ Read README.md and CONTRIBUTING.md. For native changes also read
   maintainer's responsibility and do not live in this repository.
   Native changes to this repository require the build and
   [release verification](docs/build.md#release-verification), with no skipped
-  required fixtures. Checks must remain active under `python -O`.
+  required fixtures. Checks use `require()`, never `assert` (a test enforces it).
 - For mandatory catalog CPU measurements and authorized hardware tests, follow
   [hardware profiling](docs/profiling.md); host estimates cannot fill the catalog field.
 - Build and verification commands are local. Device operations require a separate
@@ -69,7 +69,7 @@ User instructions take precedence over this file.
 All firmware comes from the user's device. Firmware, extracted firmware,
 firmware-containing packages and stock content must live outside every
 checkout, including ignored local/ directories. The one exception is the stock
-instrument catalog, profiles/opxy-1.2.0/content/op1_factory.json, kept for
+instrument catalog, profiles/opxy-1.2.1/content/op1_factory.json, kept for
 development and checked against the profile's hash; never add other stock
 files beside it. The docs use %LOCALAPPDATA%/OPXY-SDK/private/ (Windows),
 ~/Library/Application Support/OPXY-SDK/private/ (macOS) or

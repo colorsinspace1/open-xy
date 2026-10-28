@@ -46,7 +46,7 @@ All firmware comes from the user's device. Keep firmware, stock content,
 extracted firmware and firmware-containing build outputs **outside every
 checkout**, including ignored `local/`. The one exception is the stock
 instrument catalog,
-[`profiles/opxy-1.2.0/content/op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
+[`profiles/opxy-1.2.1/content/op1_factory.json`](profiles/opxy-1.2.1/content/op1_factory.json),
 which every build extends and builds read by default. The docs use
 `%LOCALAPPDATA%/OPXY-SDK/private/` (Windows),
 `~/Library/Application Support/OPXY-SDK/private/` (macOS) or
