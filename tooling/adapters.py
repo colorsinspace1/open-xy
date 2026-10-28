@@ -430,9 +430,52 @@ def catalog_entry(m):
 
 
 def generate_step_object(directory, m):
-    """A step component's adapter: its per-note method and the strings the picker shows."""
+    """A step component's adapter: stock's component methods over the callbacks the machine
+    declares, and the strings the picker shows. An undeclared callback does what an empty
+    stock component does."""
+    ns, declared = m.definition['id'], set(m.definition['callbacks'])
+    calls = {
+        'RESET': (f'    {ns}::reset(tracks[track]);', ''),
+        'CONDITION': (f'    return {ns}::condition(tracks[track]) ? 1 : 0;', '    return 1;'),
+        'ENTER': (f'    {ns}::enter(tracks[track], context(track, step), value);', '    (void)step;'),
+        'TRIGS': (f'    const u32 count = {ns}::trigs(tracks[track], value);\n'
+                  "    // 0 or 1 is stock's single trig (-1); stock spaces up to eight evenly.\n"
+                  '    return count < 2 ? -1 : count > opxy::step_max_trigs ? i32(opxy::step_max_trigs) : i32(count);',
+                  '    return -1;'),
+        'MUTE': (f'    return {ns}::mute(tracks[track], context(track, step), value) ? 1 : 0;',
+                 '    (void)step;\n    return 0;'),
+        'APPLY': (STEP_APPLY.replace('@NS@', ns), '    (void)step; (void)note;'),
+        'NEXT': (STEP_NEXT.replace('@NS@', ns), '    (void)step; (void)next; (void)counts;\n    return 0;'),
+    }
+    values = {key: call if key.lower() in declared else default for key, (call, default) in calls.items()}
     lines = steps.label_lines(m.definition)
-    return expand('step_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
+    return expand('step_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=ns,
                                              NAME=m.definition['name'].lower(),
                                              LABELS=', '.join(json.dumps(line) for line in lines)),
                   Path(directory) / f'step_object_{m.prefix}.cpp')
+
+
+# The note record's 64-bit remaining length (-1 while held) as i32 ticks, pitch folded
+# up into range and velocity clamped; stock folds pitch above 127 itself.
+STEP_APPLY = """    u32* words = reinterpret_cast<u32*>(note);
+    const i32 low = static_cast<i32>(words[0]), high = static_cast<i32>(words[1]);
+    const i32 length = high == (low >> 31) ? low : high < 0 ? -1 : 0x7fffffff;
+    opxy::StepNote view = {note[kPitch], note[kVelocity], length};
+    @NS@::apply(tracks[track], context(track, step), view, value);
+    i32 pitch = view.pitch;
+    while (pitch < 0) pitch += 12;
+    while (pitch > 255) pitch -= 12;
+    note[kPitch] = static_cast<u8>(pitch);
+    note[kVelocity] = static_cast<u8>(view.velocity < 0 ? 0 : view.velocity > 127 ? 127 : view.velocity);
+    if (view.length != length) {
+        const i32 ticks = view.length < 0 ? -1 : view.length;
+        words[0] = static_cast<u32>(ticks);
+        words[1] = ticks < 0 ? 0xffffffffu : 0u;
+    }"""
+# The natural next step arrives in *next; a true result moves the playhead there.
+STEP_NEXT = """    const opxy::StepContext at = context(track, step);
+    opxy::StepNext target = {static_cast<u32>(*next), *counts != 0};
+    if (!@NS@::next(tracks[track], at, value, target)) return 0;
+    *next = static_cast<i32>(target.step % at.length);
+    *counts = target.counts ? 1 : 0;
+    return 1;"""

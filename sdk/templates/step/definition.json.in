@@ -2,6 +2,7 @@
   "schema": 1,
   "id": "@ID@",
   "name": "@NAME@",
+  "callbacks": ["apply"],
   "settings": [
     ["octave", "down"],
     ["fifth", "down"],

@@ -244,7 +244,7 @@ async function inspect(id) {
   facts($('machine-facts'), {'Code and data': kib(own.filter(s => s.type !== 8).reduce((n, s) => n + s.size, 0)),
     'Working memory': kib(own.filter(s => s.type === 8).reduce((n, s) => n + s.size, 0)),
     // The numbers this selection gives it, or those it asks for; a step component's stock component.
-    ...(own => m.kind === 'step' ? {'Replaces': own.step} :
+    ...(own => m.kind === 'step' ? {'Replaces': own.step.replace('_', ' ')} :
       {[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine, 'Page': own.page})(
       linked?.numbers?.[m.id] ?? m.identity),
     ...(m.source ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});

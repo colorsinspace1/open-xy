@@ -1,10 +1,10 @@
 """Step components: a step machine replaces one stock sequencer step component.
 
-Stock's sequencer runs each enabled step component's per-note method on every
-note a step plays (docs/abi-1.2.1.md#step-components). A step machine takes
-over one of the replaceable components, its slot: the profile's `step` edits
-for that slot point the component's per-note method at the machine's adapter,
-reset its other stock behaviour to stock's no-op methods, and point the
+Stock's sequencer calls each step component's object through its method table:
+on reset, when a step is entered, at its trig, for each note and when the
+playhead leaves it (docs/abi-1.2.1.md#step-components). A step machine takes
+over one of the eleven object components, its slot: the profile's `step` edits
+for that slot point every called method at the machine's adapter and the
 picker's name and ten setting labels at the machine's strings. A build whose
 collection leaves a slot unassigned leaves that slot's edits stock.
 
@@ -18,8 +18,12 @@ SETTINGS = 10            # black keys 1-9 then 0, stock setting numbers 0-9
 LABEL_BYTES = 16         # each label line, NUL-terminated, in the adapter's table
 LABEL_CHARACTERS = 14    # stock's longest setting line, "force velocity"
 NAME_CHARACTERS = 10     # stock's longest component name, "portamento"
-# Edit words: a literal stock address, or the machine's adapter, name or labels.
-SYMBOLS = {'apply': '_step_apply', 'name': '_step_name', 'settings': '_step_settings'}
+# Edit words: a literal stock address, or one of the machine's adapter methods,
+# its name or its labels (<prefix>_step_<word>).
+METHODS = ('reset_all', 'reset_track', 'condition', 'apply', 'mute', 'enter', 'next', 'trigs')
+SYMBOLS = {word: '_step_' + word for word in (*METHODS, 'name', 'settings')}
+# The machine callbacks a definition may declare, beside the methods that call them.
+CALLBACKS = ('reset', 'condition', 'enter', 'trigs', 'mute', 'apply', 'next')
 
 
 def service(slot):

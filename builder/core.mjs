@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '4a30689daf83cb6abf206ac4eacd5529261f8f590446c45fd6c89a36c6fab1e9';
+export const PROFILE_SHA256 = 'f57338b8719441b2f7b774113a6a615025865dbba2c953b47ef64d763ef3b910';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -146,7 +146,9 @@ export function assignSteps(slots, layout, machines) {
 // The bytes of a step edit for the machine with this prefix: literal stock words, its
 // adapter, its name or its twenty label lines (tooling.steps.after).
 const STEP_LABEL_BYTES = 16, STEP_SETTINGS = 10;
-const STEP_SYMBOLS = {apply: '_step_apply', name: '_step_name', settings: '_step_settings'};
+// Adapter methods, the name and the labels: <prefix>_step_<word> (tooling.steps.SYMBOLS).
+const STEP_SYMBOLS = Object.fromEntries(['reset_all', 'reset_track', 'condition', 'apply', 'mute', 'enter', 'next',
+  'trigs', 'name', 'settings'].map(word => [word, '_step_' + word]));
 export function stepWords(edit, prefix, globals) {
   const words = [];
   for (const word of edit.words) {
@@ -589,8 +591,8 @@ function presentSteps(kit, input, selected, layout) {
   const linked = linkKit(kit, selected, layout);
   const owners = new Map(machines.map(m => [linked.globals.get(m.prefix + '_step_apply'), m.id]));
   const hints = {...(layout ?? {})};
-  for (const edit of kit.profile.patches) if (edit.kind === 'step' && edit.words[0] === 'apply') {
-    const word = view(input).getUint32(Number(edit.file_offset), true);
+  for (const edit of kit.profile.patches) if (edit.kind === 'step' && edit.words.includes('apply')) {
+    const word = view(input).getUint32(Number(edit.file_offset) + 4 * edit.words.indexOf('apply'), true);
     if (owners.has(word)) hints[owners.get(word)] = {step: edit.slot};
   }
   return hints;

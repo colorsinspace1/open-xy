@@ -157,8 +157,9 @@ def scaffold(out, identity, name, kind='synth', repository=False, controls=None)
     from .machines import free_effect_identity, free_synth_identity
     from .pipeline import config
     from .steps import slots
-    # before writing anything; a step component starts on the first replaceable component
-    stock_identity = (free_effect_identity() if kind == 'effect' else {'step': slots(config())[0]} if kind == 'step'
+    # before writing anything; a step component starts on velocity, whose stock behaviour is per note
+    stock_identity = (free_effect_identity() if kind == 'effect' else
+                      {'step': 'velocity' if 'velocity' in slots(config()) else slots(config())[0]} if kind == 'step'
                       else free_synth_identity())
     out = fresh_output(out)
     starters = [ROOT / 'sdk/templates' / kind]

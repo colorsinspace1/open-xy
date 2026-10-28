@@ -8,7 +8,7 @@ A machine is a folder under `machines/` named after the machine. Every kind has
 | `synth` | `engine.cpp` with `Voice`/`Shared` state, `display.cpp` and `panel.svg.fragment` | [2op FM](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/fm2op/engine.cpp), [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/engine.cpp) |
 | `sample` | `sample.cpp` with `Voice` state; the stock sample page is its screen | [Timestretch](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/timestretch/sample.cpp) |
 | `effect` | `fx.cpp` with `State`; the stock FX page is its screen | [Ring Mod](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/ringmod/fx.cpp) |
-| `step` | `step.cpp` with `apply`; it replaces a stock [step component](#step-components) | `python sdk.py new --kind step` (Transpose) |
+| `step` | `step.cpp` with per-track state and its callbacks; it replaces a stock [step component](#step-components) | `python sdk.py new --kind step` (Transpose) |
 
 The [first-machine walkthrough](first-machine.md) creates a standalone synth
 and previews it without native integration. SDK adapters own allocation,
@@ -29,7 +29,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Identity | The name follows the [identity rules](#identity) and never changes once published; a firmware's [layout](#identity) gives the numbers |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
-| Step components | Replace one of velocity, random, portamento, bend or tonality; ten settings; no state |
+| Step components | Replace one stock step component (not the conditions); ten settings; at most 256 bytes of state per track |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
 
 The [firmware contract](abi-1.2.1.md) explains where each rule comes from.
@@ -476,45 +476,82 @@ Without `dryParameter`, the adapter returns unity to preserve the source dry.
 
 ## Step components
 
-A step component changes each note a sequencer step plays. It takes over one of
-stock's step components: holding shift, a step and that component's white key
-adds it to the step, and the black keys choose one of its ten settings
+A step component changes what a sequencer step plays: its notes, how many
+times it repeats or ratchets, whether it sounds, and where the playhead goes
+next. It takes over one of stock's step components: holding shift, a step and
+that component's white key adds it to the step, and the black keys choose one
+of its ten settings
 ([TE's guide](https://teenage.engineering/guides/op-xy/step-components)).
-[step.hpp](../sdk/include/opxy/step.hpp) defines the interface. The machine
-supplies `step.cpp` with one callback in its namespace (SDK 1.5):
+[step.hpp](../sdk/include/opxy/step.hpp) defines the interface (SDK 1.5). The
+machine's `step.cpp` holds per-track state and the callbacks its definition
+lists, in its namespace:
 
 ```cpp
-void apply(opxy::StepNote& note, opxy::u32 setting);   // setting 0..9
+struct Track { ... };   // one per track, zeroed at every reset, at most 256 bytes
+void reset(Track& track);
+bool condition(Track& track);
+void enter(Track& track, const opxy::StepContext& at, opxy::u32 setting);
+opxy::u32 trigs(Track& track, opxy::u32 setting);
+bool mute(Track& track, const opxy::StepContext& at, opxy::u32 setting);
+void apply(Track& track, const opxy::StepContext& at, opxy::StepNote& note, opxy::u32 setting);
+bool next(Track& track, const opxy::StepContext& at, opxy::u32 setting, opxy::StepNext& next);
 ```
 
-`setting` is the black key's position: black keys 1 to 9, then 0. `note.pitch`
-is a MIDI note and `note.velocity` its velocity as it reaches this component;
-change either. After every component has run, stock folds the pitch into
-0..127 by octaves. The adapter clamps the velocity to 0..127; velocity 0 does
-not mute the note. `apply` runs in the sequencer for every note of a step that
-has the component, beside the step's other components: keep it short, with no
-state, allocation or I/O.
+Stock calls them for a step that has the component:
+
+| Callback | When | Does |
+| --- | --- | --- |
+| `reset` | Sequencer start, for every track; a track restart | After the adapter zeroes `Track` |
+| `enter` | The playhead enters the step, including repeats and jumps | Stock bend starts its curve; multiply picks a random count |
+| `trigs` | The step's trig | 2..8 evenly spaced trigs (stock spaces them); 0 or 1 is one trig |
+| `mute` | The step's trig | `true` plays no trig this pass |
+| `apply` | Every note the step plays | Changes `note.pitch`, `note.velocity` and `note.length` |
+| `next` | The playhead leaves the step | `next.step` arrives as the natural next step; `true` goes to `next.step` instead |
+| `condition` | Before the step's "skip component" condition | `false` ignores the condition (stock pulse and hold do while repeating) |
+
+An unlisted callback does what an empty stock component does: nothing, one
+trig, no mute, no jump, and the condition applies. `setting` is the black
+key's position: black keys 1 to 9, then 0. `at` gives the track (0..15), the
+step, the pattern's length and the note-length ticks one step spans at the
+track's speed (480 at 1/1). `note.pitch` is a MIDI note; after every component
+has run, stock folds it into 0..127 by octaves. The adapter clamps
+`note.velocity` to 0..127, and velocity 0 does not mute (use `mute`).
+`note.length` is the note's remaining length in ticks, or -1 while a key
+holds it. In `next`, clear `next.counts` on a repeat so "every Nth" conditions
+don't count the pass; components answer in stock's order (hold, pulse,
+multiply, velocity, the ramps, random, portamento, bend, tonality, jump) and
+the first `true` wins. The callbacks run in the sequencer's real-time path:
+keep them short, with no allocation, blocking or I/O.
+
+Stock's own components fit this shape: velocity, random, portamento and
+tonality are `apply`; bend is `enter`; multiply is `enter` and `trigs`; pulse
+is `reset`, `condition` and `next` (stay on the step until its count);
+hold is pulse plus `mute` for the replays and `apply` lengthening the first
+note; the ramps are `reset` and `apply` counting notes; jump is `next`. Notes
+always start at their recorded time, so no callback moves a note in time, and
+none adds notes.
 
 `definition.json` holds the component's `name`, at most ten letters, digits or
-spaces, which the picker shows in lower case, and its ten `settings` in black-key
+spaces, which the picker shows in lower case; its ten `settings` in black-key
 order, each two lines of at most 14 lower-case letters, digits, spaces or
-`% + . / -`, as the picker shows them:
+`% + . / -`, as the picker shows them; and the `callbacks` its `step.cpp`
+defines:
 
 ```json
-{"schema": 1, "id": "transpose", "name": "Transpose",
+{"schema": 1, "id": "transpose", "name": "Transpose", "callbacks": ["apply"],
  "settings": [["octave", "down"], ["fifth", "down"], ...]}
 ```
 
 `machine.json`'s `identity` names the stock component it replaces,
 `{"step": "velocity"}`; a firmware's [layout](#identity) can move it, and the
-[builder](builder.md) lets people place it on any replaceable key. The
-replaceable components are velocity, random, portamento, bend and tonality:
-their behaviour is per note. Pulse, hold, multiply, the ramps, jump and the
-conditions change timing and stay stock. A replaced component keeps its key's
-printed icon; the picker shows the machine's name and setting labels. Its stock
-behaviour is gone, including velocity's mute on "to 0". Projects store each
-step's setting numbers by component, so a project made with another component
-on that key plays the same settings through this one.
+[builder](builder.md) lets people place it on any replaceable key. Every
+component except the three skip conditions is replaceable: `pulse`, `hold`,
+`multiply`, `velocity`, `ramp_up`, `ramp_down`, `random`, `portamento`, `bend`,
+`tonality` and `jump`. The conditions are decided inside stock's sequencer.
+A replaced component keeps its key's printed icon; the picker shows the
+machine's name and setting labels, and all of the stock component's behaviour
+is gone. Projects store each step's setting numbers by component, so a project
+made with another component on that key plays the same settings through this one.
 
 ## Registration boundary
 

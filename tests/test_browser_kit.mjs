@@ -79,11 +79,16 @@ test('step components: assignment, computed words and edits only for a replaced 
   assert.deepEqual(assignSteps(slots, {a:{step:'pulse'}}, [['a', 'velocity']]), {a:'velocity'});
   assert.throws(() => assignSteps(slots.slice(0, 1), null, [['a', 'velocity'], ['b', 'velocity']]), /No free step component/);
   const profile = JSON.parse(profileBytes);
-  assert.deepEqual(stepSlots(profile), ['velocity', 'random', 'portamento', 'bend', 'tonality']);
-  const globals = new Map([['s_step_apply', 0x8d2d1000], ['s_step_name', 0x8d2d2000], ['s_step_settings', 0x8d2d3000]]);
+  assert.deepEqual(stepSlots(profile), ['pulse', 'hold', 'multiply', 'velocity', 'ramp_up', 'ramp_down', 'random',
+    'portamento', 'bend', 'tonality', 'jump']);
+  const methodNames = ['reset_all', 'reset_track', 'condition', 'apply', 'mute', 'enter', 'next', 'trigs'];
+  const globals = new Map([...methodNames.map((m, i) => ['s_step_' + m, 0x8d2d1000 + 4 * i]),
+    ['s_step_name', 0x8d2d2000], ['s_step_settings', 0x8d2d3000]]);
   const [methods, name, settings] = profile.patches.filter(p => p.kind === 'step' && p.slot === 'velocity');
   const words = bytes => Array.from({length: bytes.length / 4}, (_, i) => new DataView(bytes.buffer).getUint32(i * 4, true));
-  assert.deepEqual(words(stepWords(methods, 's', globals)), [0x8d2d1000, 0x8d582db0]);
+  // tooling.steps computes the same words (tests/test_steps.py).
+  assert.deepEqual(words(stepWords(methods, 's', globals)), [0x8d2d1000, 0x8d2d1004, 0x8d2d1008, 0x8d2d100c,
+    0x8d2d1010, 0x8d582da4, 0x8d2d1014, 0x8d2d1018, 0x8d582d80, 0x8d2d101c]);
   assert.deepEqual(words(stepWords(name, 's', globals)), [0x8d2d2000]);
   assert.deepEqual(words(stepWords(settings, 's', globals)), Array.from({length: 20}, (_, i) => 0x8d2d3000 + 16 * i));
   assert.throws(() => stepWords(methods, 'missing', globals), /Missing step component symbol/);

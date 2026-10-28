@@ -38,7 +38,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
-| Step components | 3 per replaced component | Points a stock step component's per-note method at a step machine's adapter, resets its other behaviour to stock's no-op methods, and points its picker name and ten setting labels at the machine's strings |
+| Step components | 3 per replaced component | Points a stock step component's methods at a step machine's adapter, and its picker name and ten setting labels at the machine's strings |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -523,40 +523,54 @@ the white keys in order: pulse, hold, multiply, velocity, ramp up, ramp down,
 random, portamento, bend, tonality, jump and three conditions. Every byte of
 the record is used, so step machines replace components rather than add them.
 
-Each of the first eleven components is a static object `{method table, -1,
-component number}` (built at `0x8d5836a0`); the conditions are handled by
-number. The sequencer calls every enabled component's object through its
-11-entry method table:
+The first eleven components are static objects `{method table, track mask,
+component number}`, some with per-track counters after them (built at
+`0x8d5836a0`), listed in a registry of 24 (`0x850fd490`) in dispatch order:
+hold, pulse, multiply, velocity, ramp up, ramp down, random, portamento, bend,
+tonality, jump. Only the component module (`0x8d583848`–`0x8d583f3c`) calls
+them, through their method table; for a component enabled on the step:
 
-| Entry | Use |
-| --- | --- |
-| `+0x00` | The component's short name |
-| `+0x10` | Per note: `(object, -, -, settings, -, note, -)`, where `settings` is the step's component bytes and `note` stock's note record, MIDI note at `+0x0d` and velocity at `+0x0f` |
-| `+0x14` | Mute query: nonzero skips the note. Velocity's returns true for "to 0" |
-| `+0x1c` | Per-step hook; bend's applies its pitch curve |
-| Others | Resets and timing, which pulse, hold, multiply and the ramps use |
+| Entry | Call | When |
+| --- | --- | --- |
+| `+0x04` | `reset_all()` | Sequencer start |
+| `+0x08` | `reset_track(track)` | A track restarts |
+| `+0x0c` | `condition(track)`: false ignores the step's "skip component" condition | Before evaluating it |
+| `+0x10` | `apply(track, step, settings, flags, note, chord)` | Every note, from the note builder; then pitch is folded into 0..127 (`0x8d583ada`) |
+| `+0x14` | `mute(track, step, settings)`: nonzero plays no trig | At the step's trig |
+| `+0x1c` | `enter(track, step, settings)` | The playhead enters the step, including repeats and jumps |
+| `+0x20` | `next(track, step, &next, settings, &counts, &align)`: nonzero moves the playhead to `next` | The playhead leaves the step; the first nonzero answer wins |
+| `+0x28` | `trigs(track, settings)`: -1 for one trig, else the count | At the step's trig; the sequencer spaces them `480/n` ticks apart |
 
-After every per-note method, stock folds the pitch into 0..127 by octaves
-(`0x8d583ada`). The picker reads a component's name from the pointer table at
-`0x8400d4a4` and its ten setting labels, two lines each, from `0x8400d4dc +
-80 * component`.
+`+0x00` (name), `+0x18` and `+0x24` are never called. `settings` is the step's
+component bytes, indexed by the object's component number. `note` is stock's
+note record: remaining length in ticks at `+0x00` (64-bit, -1 while held; a
+step spans 480 ticks at speed 1/1), the MIDI note at `+0x0d` and velocity at
+`+0x0f`. A pattern's first byte is its length and its ninth its speed, an
+index into the `(numerator, denominator)` pairs at `0x840a0390`;
+`0x8d586014(track)` returns the track's current pattern. Stock pulse and hold
+answer `next` with the same step until their count, hold also mutes the
+replays and lengthens the first note, multiply answers `trigs`, bend starts
+its curve in `enter`, the ramps count notes in `apply`, and jump answers
+`next`. The conditions (`0x8d583798`) are decided inside the module, not by
+objects, and are not replaceable.
 
-Velocity (3), random (6), portamento (7), bend (8) and tonality (9) act per
-note, so they are replaceable; the profile names each one's edits with its
-`slot`. For a replaced component a build writes three `step` edits:
+For a replaced component a build writes three `step` edits, named in the
+profile by its `slot`:
 
-1. Its per-note method, pointing at the machine's adapter
-   ([`step_object.cpp.in`](../sdk/platform/opxy-1.2.1/step_object.cpp.in)),
-   and the method-table entries that carry its own behaviour (velocity's mute
-   query, bend's curve) reset to stock's no-op methods.
-2. Its picker name pointer, pointing at the machine's name.
-3. Its 20 setting-label pointers, pointing at the machine's labels.
+1. Its method table entries `+0x04`..`+0x28`, pointing at the machine's
+   adapter ([`step_object.cpp.in`](../sdk/platform/opxy-1.2.1/step_object.cpp.in)),
+   with the two unused entries kept as stock's no-ops.
+2. Its picker name pointer (`0x8400d4a4 + 4 * component`), pointing at the
+   machine's name.
+3. Its 20 setting-label pointers (`0x8400d4dc + 80 * component`), pointing at
+   the machine's labels.
 
 The build computes these words from the machine's symbols
 ([`tooling/steps.py`](../tooling/steps.py), and `stepWords` in the builder) and
 checks that each points into the module and each literal is the reviewed stock
-no-op. The adapter reads the component number from the object, so one compiled
-machine serves any component, and a layout moves it without recompiling.
-Recovering a build reads which adapter each replaced component points at, then
-accepts the guess only by rebuilding the image exactly.
-
+no-op. The adapter keeps each machine's per-track state, reads the component
+number from the object, so one compiled machine serves any component, and
+calls the machine's callbacks; a callback the machine doesn't declare behaves
+as stock's empty component. Recovering a build reads which adapter each
+replaced component points at, then accepts the guess only by rebuilding the
+image exactly.

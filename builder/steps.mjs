@@ -4,10 +4,13 @@
 // lets them replace (core.mjs stepSlots); every other key stays stock.
 // Original drawing after the OP–XY layout: https://teenage.engineering/guides/op-xy/step-components
 
-// Stock components in white-key order, as the guide names them; a replaceable one's
-// profile slot is its name here.
-export const STOCK_KEYS = ['pulse', 'hold', 'multiply', 'velocity', 'ramp up', 'ramp down', 'random', 'portamento',
-  'bend', 'tonality', 'jump', 'skip param', 'skip comp', 'skip trig'];
+// Stock components in white-key order as [profile slot, name the guide gives it];
+// the conditions have no slot, since stock decides them itself.
+export const STOCK_KEYS = [['pulse', 'pulse'], ['hold', 'hold'], ['multiply', 'multiply'], ['velocity', 'velocity'],
+  ['ramp_up', 'ramp up'], ['ramp_down', 'ramp down'], ['random', 'random'], ['portamento', 'portamento'],
+  ['bend', 'bend'], ['tonality', 'tonality'], ['jump', 'jump'], [null, 'skip param'], [null, 'skip comp'],
+  [null, 'skip trig']];
+const keyName = slot => STOCK_KEYS.find(([id]) => id === slot)?.[1] ?? slot;
 // Black keys over white-key columns, numbered 1..9 then 0: setting numbers 0..9.
 const BLACK_COLUMNS = [1, 2, 3, 5, 6, 8, 9, 10, 12, 13];
 
@@ -44,8 +47,8 @@ export function render(container, {kit, slots, placed, armed, place, remove, arm
     chip.type = 'button'; chip.draggable = true; chip.dataset.id = m.id;
     const where = Object.entries(placed).find(([, owner]) => owner.id === m.id)?.[0];
     chip.setAttribute('aria-pressed', String(armed === m.id));
-    chip.title = where ? `Replaces ${where}` : 'Drag onto a highlighted key';
-    if (where) chip.append(element('span', '→ ' + where, 'step-chip-where'));
+    chip.title = where ? `Replaces ${keyName(where)}` : 'Drag onto a highlighted key';
+    if (where) chip.append(element('span', '→ ' + keyName(where), 'step-chip-where'));
     chip.ondragstart = e => { e.dataTransfer.setData('text/plain', m.id); e.dataTransfer.effectAllowed = 'move'; };
     chip.onclick = () => arm(armed === m.id ? null : m.id);
     chip.onfocus = chip.onmouseenter = () => labels(m);
@@ -53,10 +56,10 @@ export function render(container, {kit, slots, placed, armed, place, remove, arm
     return item;
   }));
   const whites = element('div', undefined, 'step-whites');
-  STOCK_KEYS.forEach(name => {
-    const replaceable = slots.includes(name), owner = placed[name];
+  STOCK_KEYS.forEach(([slot, name]) => {
+    const replaceable = slots.includes(slot), owner = placed[slot];
     const key = element('button', undefined, 'step-white' + (replaceable ? ' replaceable' : '') + (owner ? ' placed' : ''));
-    key.type = 'button'; key.dataset.slot = name;
+    key.type = 'button'; if (slot) key.dataset.slot = slot;
     key.disabled = !replaceable;
     key.append(element('span', name, 'step-stock'), element('span', owner ? owner.name : replaceable ? 'stock' : '', 'step-owner'));
     key.setAttribute('aria-label', !replaceable ? `${name}: stock only` :
@@ -64,7 +67,7 @@ export function render(container, {kit, slots, placed, armed, place, remove, arm
       armed ? `${name}: place here` : `${name}: stock. Pick a step component first.`);
     if (replaceable) {
       key.onclick = () => {
-        if (armed) place(armed, name);
+        if (armed) place(armed, slot);
         else if (owner) remove(owner.id);
       };
       key.ondragover = e => { e.preventDefault(); key.dataset.drag = 'true'; };
@@ -72,7 +75,7 @@ export function render(container, {kit, slots, placed, armed, place, remove, arm
       key.ondrop = e => {
         e.preventDefault(); key.dataset.drag = 'false';
         const id = e.dataTransfer.getData('text/plain');
-        if (machines.some(m => m.id === id)) place(id, name);
+        if (machines.some(m => m.id === id)) place(id, slot);
       };
       key.onfocus = key.onmouseenter = () => labels(owner);
     }

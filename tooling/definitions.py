@@ -112,10 +112,15 @@ STEP_NAME = re.compile(r'[A-Za-z][A-Za-z0-9 ]{0,9}')
 
 
 def validate_step_definition(value):
-    """A step component: its name and ten settings (tooling/steps.py). It has no
-    controls, presets or resources; the returned definition gives them empty."""
-    from .steps import SETTINGS
-    keys(value, ('schema', 'id', 'name', 'settings'), 'definition')
+    """A step component: its name, ten settings and the callbacks its step.cpp
+    defines (tooling/steps.py). It has no controls, presets or resources; the
+    returned definition gives them empty."""
+    from .steps import CALLBACKS, SETTINGS
+    keys(value, ('schema', 'id', 'name', 'settings', 'callbacks'), 'definition')
+    callbacks = value['callbacks']
+    require(isinstance(callbacks, list) and callbacks and len(set(callbacks)) == len(callbacks) and
+            all(c in CALLBACKS for c in callbacks),
+            'callbacks lists the step.cpp callbacks, each once, from ' + ', '.join(CALLBACKS))
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id'])
     require(isinstance(value['name'], str) and STEP_NAME.fullmatch(value['name']),

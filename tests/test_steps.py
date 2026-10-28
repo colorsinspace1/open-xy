@@ -13,8 +13,11 @@ from tooling.pipeline import check_patch_boundaries, config
 
 from machine_fixtures import FOLDER, fixture
 
-# Stock 1.2.1's no-op component methods (docs/abi-1.2.1.md#step-components).
-NOOP_MUTE, NOOP_SLOT6, NOOP_SLOT7 = 0x8d582db0, 0x8d582da4, 0x8d582d98
+SLOTS = ['pulse', 'hold', 'multiply', 'velocity', 'ramp_up', 'ramp_down', 'random', 'portamento', 'bend',
+         'tonality', 'jump']
+# Stock 1.2.1's unused method-table entries (+0x18, +0x24) stay its no-ops.
+METHODS = ['reset_all', 'reset_track', 'condition', 'apply', 'mute', '0x8d582da4', 'enter', 'next', '0x8d582d80',
+           'trigs']
 
 
 class StepEdits(unittest.TestCase):
@@ -23,29 +26,20 @@ class StepEdits(unittest.TestCase):
         self.edits = [p for p in self.profile['patches'] if p['kind'] == 'step']
 
     def test_replaceable_components_and_their_edits(self):
-        self.assertEqual(steps.slots(self.profile), ['velocity', 'random', 'portamento', 'bend', 'tonality'])
-        # Each slot: its methods from the per-note one, its picker name and its ten setting rows.
-        self.assertEqual([(p['slot'], p['length']) for p in self.edits], [
-            ('velocity', 8), ('velocity', 4), ('velocity', 80), ('random', 4), ('random', 4), ('random', 80),
-            ('portamento', 4), ('portamento', 4), ('portamento', 80), ('bend', 16), ('bend', 4), ('bend', 80),
-            ('tonality', 4), ('tonality', 4), ('tonality', 80)])
-        # The startup label stays the profile's last edit.
+        # The eleven object components in white-key order; the conditions are stock's own.
+        self.assertEqual(steps.slots(self.profile), SLOTS)
+        # Each: its methods +0x04..+0x28, its picker name and its ten setting rows.
+        self.assertEqual([(p['slot'], p['length'], p['words']) for p in self.edits],
+                         [row for slot in SLOTS for row in ((slot, 40, METHODS), (slot, 4, ['name']),
+                                                            (slot, 80, ['settings']))])
         self.assertEqual(self.profile['patches'][-1]['kind'], 'startup')
-
-    def test_other_methods_become_stock_no_ops(self):
-        methods = {p['slot']: p for p in self.edits if p['words'][0] == 'apply'}
-        # Velocity's mute query ("to 0") and bend's curve are reset; the rest already are.
-        velocity = struct.unpack('<2I', bytes.fromhex(methods['velocity']['before']))
-        self.assertNotEqual(velocity[1], NOOP_MUTE)
-        self.assertEqual(methods['velocity']['words'], ['apply', hex(NOOP_MUTE)])
-        bend = struct.unpack('<4I', bytes.fromhex(methods['bend']['before']))
-        self.assertEqual(bend[1:3], (NOOP_MUTE, NOOP_SLOT6))
-        self.assertNotEqual(bend[3], NOOP_SLOT7)
-        self.assertEqual(methods['bend']['words'], ['apply', hex(NOOP_MUTE), hex(NOOP_SLOT6), hex(NOOP_SLOT7)])
+        # Every replaced method is the stock one: the names and rows follow the component numbers.
+        names = [int(p['address'], 16) for p in self.edits if p['words'] == ['name']]
+        self.assertEqual(names, [0x8400d4a4 + 4 * t for t in range(11)])
 
     def test_computed_bytes_point_into_the_module(self):
-        symbols = {'probestep_step_apply': 0x8d2d1000, 'probestep_step_name': 0x8d2d2000,
-                   'probestep_step_settings': 0x8d2d3000}
+        symbols = {'probestep_step_' + m: 0x8d2d1000 + 4 * i for i, m in enumerate(steps.METHODS)}
+        symbols.update(probestep_step_name=0x8d2d2000, probestep_step_settings=0x8d2d3000)
         low, high = 0x8d2d0000, 0x8d2d4000
         for patch in self.edits:
             data = steps.after(patch, 'probestep', symbols.__getitem__)
@@ -56,13 +50,15 @@ class StepEdits(unittest.TestCase):
             elif patch['words'] == ['name']:
                 self.assertEqual(words, (0x8d2d2000,))
             else:
-                self.assertEqual(words[0], 0x8d2d1000)
+                self.assertEqual(words, tuple(int(w, 16) if w.startswith('0x') else symbols['probestep_step_' + w]
+                                              for w in METHODS))
             with self.assertRaisesRegex(ValueError, 'outside the module'):
                 steps.check_after(patch, data, high, high + 0x1000)
-        velocity = self.edits[0]
-        wrong = struct.pack('<2I', 0x8d2d1000, NOOP_SLOT6)
+        methods = self.edits[0]
+        wrong = bytearray(steps.after(methods, 'probestep', symbols.__getitem__))
+        wrong[20:24] = struct.pack('<I', 0x8d2d1000)  # the unused +0x18 entry moved into the module
         with self.assertRaisesRegex(ValueError, 'outside the module'):
-            steps.check_after(velocity, wrong, low, high)
+            steps.check_after(methods, bytes(wrong), low, high)
 
     def test_a_slot_changes_only_when_a_machine_replaces_it(self):
         for patch in self.edits:
@@ -76,7 +72,7 @@ class StepEdits(unittest.TestCase):
         for change in cases:
             with self.subTest(change=change):
                 profile = copy.deepcopy(self.profile)
-                profile['patches'][-2].update(change)  # tonality's setting rows
+                profile['patches'][-2].update(change)  # jump's setting rows
                 with self.assertRaises(ValueError):
                     check_patch_boundaries(profile, len(profile['patches']))
         # A build's profile carries the bytes, and an unreplaced slot keeps stock's.
@@ -89,7 +85,7 @@ class StepEdits(unittest.TestCase):
 
 class StepMachines(unittest.TestCase):
     def definition(self, **change):
-        value = dict(schema=1, id='steppy', name='Steppy', settings=[['a', 'b']] * 10)
+        value = dict(schema=1, id='steppy', name='Steppy', settings=[['a', 'b']] * 10, callbacks=['apply'])
         value.update(change)
         return value
 
@@ -98,7 +94,8 @@ class StepMachines(unittest.TestCase):
         self.assertEqual((definition['parameters'], definition['presets'], definition['resources']), ([], {}, {}))
         for change in (dict(settings=[['a', 'b']] * 9), dict(settings=[['a']] * 10),
                        dict(settings=[['a', 'b']] * 9 + [['A', 'b']]), dict(settings=[['a', 'x' * 15]] * 10),
-                       dict(name='Eleven char'), dict(parameters=[]), dict(settings=[['', 'b']] * 10)):
+                       dict(name='Eleven char'), dict(parameters=[]), dict(settings=[['', 'b']] * 10),
+                       dict(callbacks=[]), dict(callbacks=['apply', 'apply']), dict(callbacks=['render'])):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 validate_definition(self.definition(**change), 'step')
         self.assertEqual(steps.label_lines(definition)[:3], ['a', 'b', 'a'])
@@ -112,7 +109,7 @@ class StepMachines(unittest.TestCase):
             for name in ('definition.json', 'step.cpp'):
                 (folder / name).write_bytes((FOLDER / 'probestep' / name).read_bytes())
             record = json.loads((FOLDER / 'probestep/machine.json').read_text(encoding='utf-8'))
-            for change in (dict(identity={'step': 'pulse'}), dict(identity={'engine': 40, 'page': 90}),
+            for change in (dict(identity={'step': 'skip trig'}), dict(identity={'engine': 40, 'page': 90}),
                            dict(sdk='1.4'), dict(presets='presets'), dict(sources=['extra.cpp'])):
                 with self.subTest(change=change):
                     (folder / 'machine.json').write_text(json.dumps(dict(record, **change)), encoding='utf-8')

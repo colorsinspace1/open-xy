@@ -43,8 +43,8 @@ leaves the browser.
    [personal kit](#export-a-kit)'s own machines are marked **Yours**.
    When the kit has [step components](api.md#step-components), a keyboard
    below the list shows the OP–XY's fourteen step component keys. Drag a step
-   component from the list onto one of the highlighted keys (velocity, random,
-   portamento, bend or tonality), or pick it and then the key; the key's black
+   component from the list onto one of the highlighted keys (every key except
+   the three skip conditions), or pick it and then the key; the key's black
    keys show its ten settings. Pressing a replaced key restores stock and
    leaves the component out. A component placed where another was replaces it.
 4. Follow the installation guide using the remembered computer choice. Mac
