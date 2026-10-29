@@ -496,7 +496,18 @@
       "id": "tattva",
       "kind": "synth",
       "maintainer": "colorsinspace1",
-      "status": "reserved"
+      "status": "published",
+      "repository": "https://github.com/colorsinspace1/tattva",
+      "tag": "v1.0.0",
+      "commit": "2e211a52553f0ffd71956bf0c90bb1f3591e125d",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "2e211a52553f0ffd71956bf0c90bb1f3591e125d",
+        "firmware_sha256": "d1a89b07ee57bb6ceafab0b5fc954be7929cbdea4985b790d0f1b6a60b9643ed",
+        "runs": 3,
+        "block_percent": 3.50042
+      }
     },
     {
       "id": "grainfield",
