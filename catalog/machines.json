@@ -491,6 +491,18 @@
         "runs": 3,
         "block_percent": 4.910353
       }
+    },
+    {
+      "id": "tattva",
+      "kind": "synth",
+      "maintainer": "colorsinspace1",
+      "status": "reserved"
+    },
+    {
+      "id": "grainfield",
+      "kind": "effect",
+      "maintainer": "colorsinspace1",
+      "status": "reserved"
     }
   ]
 }
